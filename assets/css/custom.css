@@ -768,3 +768,234 @@ body:not(.dash-body) {
         grid-template-columns: 1fr;
     }
 }
+
+/* Landing */
+.landing2-body {
+    font-family: "Plus Jakarta Sans", "Segoe UI", Arial, sans-serif;
+    background: radial-gradient(circle at top left, #f6edff, #eef4ff 55%, #f8fbff 100%);
+    min-height: 100vh;
+    color: #2c2144;
+}
+
+.landing2-nav {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.landing2-brand {
+    font-weight: 700;
+    font-size: 20px;
+}
+
+.landing2-links {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+}
+
+.landing2-links a {
+    text-decoration: none;
+    color: #2c2144;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.landing2-hero {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 16px 64px;
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 24px;
+    align-items: center;
+}
+
+.landing2-eyebrow {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--dash-muted);
+    font-weight: 600;
+}
+
+.landing2-hero-text h1 {
+    font-size: 36px;
+    margin: 12px 0;
+    line-height: 1.15;
+}
+
+.landing2-hero-text p {
+    color: var(--dash-muted);
+    font-size: 15px;
+    max-width: 520px;
+}
+
+.landing2-cta {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.landing2-badges {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+
+.landing2-badges span {
+    background: #fff;
+    border: 1px solid var(--dash-border);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.landing2-hero-card {
+    background: #ffffff;
+    border-radius: 22px;
+    padding: 20px;
+    box-shadow: 0 18px 40px rgba(90, 70, 140, 0.18);
+    border: 1px solid #efe9ff;
+}
+
+.landing2-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.landing2-card-label {
+    font-size: 12px;
+    color: var(--dash-muted);
+}
+
+.landing2-card-value {
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.landing2-card-chip {
+    background: #efe9ff;
+    color: #7a5cff;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.landing2-card-chart {
+    height: 140px;
+    margin: 14px 0;
+    border-radius: 14px;
+    /* background: linear-gradient(135deg, #efe9ff, #f6f2ff); */
+}
+
+.landing2-card-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.landing2-card-row small {
+    color: var(--dash-muted);
+}
+
+.landing2-section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+}
+
+.landing2-section h2 {
+    font-size: 26px;
+    margin-bottom: 18px;
+}
+
+.landing2-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.landing2-feature {
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 18px;
+    border: 1px solid #efe9ff;
+    box-shadow: 0 10px 24px rgba(90, 70, 140, 0.12);
+}
+
+.landing2-feature h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+}
+
+.landing2-feature p {
+    color: var(--dash-muted);
+    font-size: 13px;
+}
+
+.landing2-how {
+    background: #f7f5ff;
+    border-radius: 24px;
+    margin: 0 16px;
+}
+
+.landing2-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.landing2-steps div {
+    background: #ffffff;
+    padding: 16px;
+    border-radius: 18px;
+    border: 1px solid #efe9ff;
+}
+
+.landing2-steps span {
+    display: inline-block;
+    font-weight: 700;
+    color: #7a5cff;
+}
+
+.landing2-cta-band {
+    max-width: 1100px;
+    margin: 32px auto 0;
+    padding: 24px 16px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.landing2-footer {
+    text-align: center;
+    padding: 20px 16px 32px;
+    color: var(--dash-muted);
+    font-size: 12px;
+}
+
+@media (max-width: 900px) {
+    .landing2-links {
+        display: none;
+    }
+    .landing2-hero {
+        grid-template-columns: 1fr;
+    }
+    .landing2-grid,
+    .landing2-steps {
+        grid-template-columns: 1fr;
+    }
+    .landing2-cta-band {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
