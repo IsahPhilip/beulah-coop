@@ -1,0 +1,20 @@
+/vendor/
+/uploads/
+/node_modules/
+/dist/
+/build/
+.env
+.env.*
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+/.vscode/
+/.idea/
+/.phpunit.result.cache
+composer.phar
+/2025COOP LEDGERS.xlsx
+/Dashboard UI_ UX.jpeg
