@@ -1,5 +1,13 @@
 <?php
-// includes/functions.php - Helper Functions
+/**
+ * Helper Functions
+ * Uses environment variables for configuration
+ */
+
+// Ensure env loader is available
+if (!function_exists('env')) {
+    require_once __DIR__ . '/env.php';
+}
 
 /**
  * Format amount as Nigerian Naira
@@ -10,10 +18,18 @@ function format_money($amount) {
 
 /**
  * Audit Logging
+ * Uses AUDIT_LOG_TABLE from .env
  */
 function log_audit($pdo, $user_id, $action, $details = '') {
+    // Check if audit logging is enabled
+    if (!env('AUDIT_LOG_ENABLED', true)) {
+        return;
+    }
+    
+    $auditTable = env('AUDIT_LOG_TABLE', 'audit_logs');
+    
     $stmt = $pdo->prepare("
-        INSERT INTO audit_logs (user_id, action, details, ip_address) 
+        INSERT INTO {$auditTable} (user_id, action, details, ip_address) 
         VALUES (?, ?, ?, ?)
     ");
     $stmt->execute([
@@ -40,4 +56,79 @@ function get_user_balances($pdo, $user_id) {
     $stmt->execute([$user_id]);
     return $stmt->fetch();
 }
+
+/**
+ * Get password minimum length from environment
+ */
+function get_password_min_length() {
+    return (int) env('PASSWORD_MIN_LENGTH', 8);
+}
+
+/**
+ * Get upload configuration
+ */
+function get_upload_config() {
+    return [
+        'max_size' => (int) env('UPLOAD_MAX_SIZE', 5242880),
+        'profiles_dir' => env('UPLOAD_PROFILES_DIR', 'uploads/profiles/'),
+        'allowed_types' => explode(',', env('ALLOWED_IMAGE_TYPES', 'jpeg,png,gif,webp')),
+    ];
+}
+
+/**
+ * Get 2FA configuration
+ */
+function get_2fa_config() {
+    return [
+        'code_length' => (int) env('2FA_CODE_LENGTH', 6),
+        'code_expiry' => (int) env('2FA_CODE_EXPIRY', 600),
+        'issuer' => env('2FA_ISSUER', 'Beulah Coop'),
+    ];
+}
+
+/**
+ * Get mail configuration
+ */
+function get_mail_config() {
+    return [
+        'host' => env('MAIL_HOST', 'smtp.gmail.com'),
+        'port' => (int) env('MAIL_PORT', 587),
+        'username' => env('MAIL_USERNAME', ''),
+        'password' => env('MAIL_PASSWORD', ''),
+        'encryption' => env('MAIL_ENCRYPTION', 'tls'),
+        'from_address' => env('MAIL_FROM_ADDRESS', 'no-reply@beulahcoop.local'),
+        'from_name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Beulah Coop')),
+    ];
+}
+
+/**
+ * Format date according to environment configuration
+ */
+function format_date($date, $format = 'display') {
+    $formats = [
+        'date' => env('DATE_FORMAT', 'Y-m-d'),
+        'datetime' => env('DATETIME_FORMAT', 'Y-m-d H:i:s'),
+        'display' => env('DISPLAY_DATE_FORMAT', 'd M Y, h:i A'),
+    ];
+    
+    $fmt = $formats[$format] ?? $formats['display'];
+    return date($fmt, strtotime($date));
+}
+
+/**
+ * Get timezone from environment
+ */
+function get_timezone() {
+    return env('TIMEZONE', 'Africa/Lagos');
+}
+
+/**
+ * Set application timezone
+ */
+function set_app_timezone() {
+    date_default_timezone_set(get_timezone());
+}
+
+// Set timezone on function load
+set_app_timezone();
 ?>

@@ -49,22 +49,66 @@ if ($role === 'admin') {
         <main class="dash-main">
             <div class="dash-topbar">
                 <div>
-                    <div class="dash-greeting">Good day, <?= htmlspecialchars($name) ?></div>
+                    <div class="dash-greeting">Good day, <?= htmlspecialchars($name) ?>!</div>
                     <div class="dash-meta"><?= date('l, j M Y') ?></div>
                 </div>
                 <div class="dash-actions">
                     <button class="dash-hamburger" type="button" aria-label="Toggle menu">
                         <i class="bi bi-list"></i>
                     </button>
-                    <div class="dash-search">
-                        <input type="text" placeholder="Search members, loans, transactions...">
-                    </div>
-                    <div class="dash-user">
-                        <div class="dash-avatar"><?= strtoupper(substr($name, 0, 1)) ?></div>
-                        <div class="dash-user-text">
-                            <div class="dash-user-name"><?= htmlspecialchars($name) ?></div>
-                            <div class="dash-user-role"><?= htmlspecialchars(ucfirst($role ?? 'guest')) ?></div>
+                    <form class="dash-search" method="GET" action="<?= ($role === 'admin') ? $basePath . '/admin/transactions.php' : $basePath . '/member/dashboard.php' ?>">
+                        <input type="text" name="search" placeholder="Search transactions..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
+                    </form>
+                    <div class="dash-user dropdown">
+                        <div class="dash-avatar-wrapper" style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false">
+                            <?php
+                            // Fetch profile photo for current user
+                            $profilePhoto = '';
+                            if (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) {
+                                try {
+                                    $photoStmt = $pdo->prepare("SELECT profile_photo FROM users WHERE id = ?");
+                                    $photoStmt->execute([$_SESSION['user_id']]);
+                                    $photoUser = $photoStmt->fetch();
+                                    if ($photoUser && !empty($photoUser['profile_photo']) && file_exists(__DIR__ . '/../' . $photoUser['profile_photo'])) {
+                                        $profilePhoto = $photoUser['profile_photo'];
+                                    }
+                                } catch (PDOException $e) {
+                                    // Silent fail if query fails
+                                }
+                            }
+                            ?>
+                            <?php if (!empty($profilePhoto)): ?>
+                                <img src="<?= $basePath ?>/<?= htmlspecialchars($profilePhoto) ?>" alt="Profile" class="dash-avatar-img">
+                            <?php else: ?>
+                                <div class="dash-avatar"><?= strtoupper(substr($name, 0, 1)) ?></div>
+                            <?php endif; ?>
                         </div>
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="border-radius: 12px; min-width: 180px;">
+                            <li>
+                                <a class="dropdown-item py-2 px-3" href="<?= $basePath ?>/member/profile.php">
+                                    <i class="bi bi-person-circle me-2"></i>My Profile
+                                </a>
+                            </li>
+                            <?php if ($role === 'admin'): ?>
+                                <li>
+                                    <a class="dropdown-item py-2 px-3" href="<?= $basePath ?>/admin/import.php">
+                                        <i class="bi bi-upload me-2"></i>Import Excel
+                                    </a>
+                                </li>
+                            <?php else: ?>
+                                <li>
+                                    <a class="dropdown-item py-2 px-3" href="<?= $basePath ?>/member/download-ledger.php">
+                                        <i class="bi bi-filetype-pdf me-2"></i>Download PDF
+                                    </a>
+                                </li>
+                            <?php endif; ?>
+                            <li><hr class="dropdown-divider my-1"></li>
+                            <li>
+                                <a class="dropdown-item py-2 px-3 text-danger" href="<?= $basePath ?>/auth/logout.php">
+                                    <i class="bi bi-box-arrow-right me-2"></i>Logout
+                                </a>
+                            </li>
+                        </ul>
                     </div>
                 </div>
             </div>

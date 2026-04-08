@@ -1,20 +1,48 @@
-/vendor/
-/uploads/
-/node_modules/
-/dist/
-/build/
+# Environment configuration
 .env
-.env.*
-*.log
-*.tmp
-*.bak
-.DS_Store
-Thumbs.db
+
+# Dependencies
+vendor/
+composer.lock
+
+# Uploads
+uploads/profiles/*
+!uploads/.htaccess
+uploads/*.xlsx
+uploads/*.xls
+
+# IDE and Editor files
+.vscode/
+.idea/
 *.swp
 *.swo
-/.vscode/
-/.idea/
-/.phpunit.result.cache
-composer.phar
-/2025COOP LEDGERS.xlsx
-/Dashboard UI_ UX.jpeg
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Cache
+cache/
+*.cache
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Database backups
+*.sql
+!database/migrations/
+
+# PDF exports
+*.pdf
+!README.pdf
+
+# Session files (if using file-based sessions)
+sessions/

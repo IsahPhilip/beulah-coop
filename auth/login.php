@@ -1,11 +1,24 @@
 <?php
-// auth/login.php
+/**
+ * Login Page
+ * Handles user authentication with optional 2FA
+ */
+
+// Load environment and start session
+require_once '../includes/env.php';
+
+$sessionName = env('SESSION_NAME', 'beulah_session');
+session_name($sessionName);
 session_start();
+
 require_once '../config/db.php';
 require_once '../includes/functions.php';
 
 $error = '';
 
+/**
+ * Resolve the 2FA column name dynamically
+ */
 function resolve_twofa_column($pdo) {
     $candidates = ['twofa_enabled', 'two_factor_enabled'];
     $placeholders = implode(',', array_fill(0, count($candidates), '?'));
@@ -23,78 +36,130 @@ function resolve_twofa_column($pdo) {
     return $row['COLUMN_NAME'] ?? null;
 }
 
+/**
+ * Resolve the password column name (support both password and password_hash)
+ */
+function resolve_password_column($pdo) {
+    $candidates = ['password_hash', 'password'];
+    $placeholders = implode(',', array_fill(0, count($candidates), '?'));
+    $sql = "
+        SELECT COLUMN_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'users'
+          AND COLUMN_NAME IN ($placeholders)
+        LIMIT 1
+    ";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($candidates);
+    $row = $stmt->fetch();
+    return $row['COLUMN_NAME'] ?? 'password_hash';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $coop_no = strtoupper(trim($_POST['coop_no']));
-    $password = $_POST['password'];
+    $coop_no = strtoupper(trim($_POST['coop_no'] ?? ''));
+    $password = $_POST['password'] ?? '';
 
     if (empty($coop_no) || empty($password)) {
         $error = "Coop No. and Password are required.";
     } else {
-        $twofaColumn = resolve_twofa_column($pdo);
-        $selectTwofa = $twofaColumn ? ", {$twofaColumn} AS twofa_enabled" : "";
-        $stmt = $pdo->prepare("SELECT id, coop_no, name, password_hash, role, email{$selectTwofa} FROM users WHERE coop_no = ?");
-        $stmt->execute([$coop_no]);
-        $user = $stmt->fetch();
+        try {
+            $twofaColumn = resolve_twofa_column($pdo);
+            $passwordColumn = resolve_password_column($pdo);
+            
+            $selectTwofa = $twofaColumn ? ", {$twofaColumn} AS twofa_enabled" : "";
+            $stmt = $pdo->prepare("SELECT id, coop_no, name, {$passwordColumn}, role, email{$selectTwofa} FROM users WHERE coop_no = ?");
+            $stmt->execute([$coop_no]);
+            $user = $stmt->fetch();
 
-        if ($user && password_verify($password, $user['password_hash'])) {
-            $twofaEnabled = !empty($user['twofa_enabled']);
-
-            if (!$twofaEnabled) {
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['coop_no'] = $user['coop_no'];
-                $_SESSION['name'] = $user['name'];
-                $_SESSION['role'] = $user['role'];
-                $_SESSION['last_activity'] = time();
-
-                log_audit($pdo, $user['id'], 'login_success', 'Login without 2FA');
-
-                if ($user['role'] === 'admin') {
-                    header("Location: ../admin/index.php");
-                } else {
-                    header("Location: ../member/dashboard.php");
-                }
-                exit();
-            }
-
-            if (empty($user['email'])) {
-                $error = "2FA is enabled on your account, but no email is set. Please contact admin.";
+            if (!$user) {
+                $error = "Invalid Coop No. or Password.";
+            } elseif (!password_verify($password, $user[$passwordColumn])) {
+                $error = "Invalid Coop No. or Password.";
             } else {
-                // Start 2FA process
-                $code = rand(100000, 999999);
-                $_SESSION['temp_user'] = $user;
-                $_SESSION['2fa_code'] = $code;
-                $_SESSION['2fa_expiry'] = time() + 600; // 10 minutes
+                // User authenticated successfully
+                $twofaEnabled = !empty($user['twofa_enabled']);
 
-                // Send email
-                require_once '../vendor/autoload.php';
-                $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+                if (!$twofaEnabled) {
+                    // No 2FA - login directly
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['coop_no'] = $user['coop_no'];
+                    $_SESSION['name'] = $user['name'];
+                    $_SESSION['role'] = $user['role'];
+                    $_SESSION['last_activity'] = time();
 
-                try {
-                    $mail->isSMTP();
-                    $mail->Host = 'smtp.gmail.com';           // Change to your SMTP host
-                    $mail->SMTPAuth = true;
-                    $mail->Username = 'your-email@gmail.com'; // Change
-                    $mail->Password = 'your-app-password';    // Use App Password
-                    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port = 587;
+                    log_audit($pdo, $user['id'], 'login_success', 'Login without 2FA');
 
-                    $mail->setFrom('no-reply@beulahcoop.local', 'Beulah Coop');
-                    $mail->addAddress($user['email']);
-                    $mail->isHTML(true);
-                    $mail->Subject = 'Your Beulah Coop 2FA Code';
-                    $mail->Body = "Dear {$user['name']},<br><br>Your 6-digit verification code is: <b>$code</b><br><br>This code expires in 10 minutes.<br><br>Thank you.";
-
-                    $mail->send();
-
-                    log_audit($pdo, $user['id'], '2fa_initiated', '2FA code sent to email');
-                    header("Location: verify_2fa.php");
+                    if ($user['role'] === 'admin') {
+                        header("Location: ../admin/index.php");
+                    } else {
+                        header("Location: ../member/dashboard.php");
+                    }
                     exit();
-                } catch (Exception $e) {
-                    $error = "Failed to send 2FA code. Please contact admin.";
+                }
+
+                // 2FA is enabled
+                if (empty($user['email'])) {
+                    $error = "2FA is enabled on your account, but no email is set. Please contact admin.";
+                } else {
+                    // Start 2FA process
+                    $code = rand(100000, 999999);
+                    $_SESSION['temp_user'] = $user;
+                    $_SESSION['2fa_code'] = $code;
+                    $_SESSION['2fa_expiry'] = time() + (int)env('2FA_CODE_EXPIRY', 600);
+
+                    // Send email using environment config
+                    try {
+                        require_once '../vendor/autoload.php';
+                        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+
+                        $mail->isSMTP();
+                        $mail->Host = env('MAIL_HOST', 'smtp.gmail.com');
+                        $mail->SMTPAuth = true;
+                        $mail->Username = env('MAIL_USERNAME', '');
+                        $mail->Password = env('MAIL_PASSWORD', '');
+                        $mail->SMTPSecure = env('MAIL_ENCRYPTION', 'tls');
+                        $mail->Port = (int)env('MAIL_PORT', 587);
+
+                        $mail->setFrom(env('MAIL_FROM_ADDRESS', 'no-reply@beulahcoop.local'), env('MAIL_FROM_NAME', 'Beulah Coop'));
+                        $mail->addAddress($user['email']);
+                        $mail->isHTML(true);
+                        $mail->Subject = 'Your Beulah Coop 2FA Code';
+                        $mail->Body = "Dear {$user['name']},<br><br>Your 6-digit verification code is: <b>$code</b><br><br>This code expires in " . env('2FA_CODE_EXPIRY', 600) / 60 . " minutes.<br><br>Thank you.";
+
+                        $mail->send();
+
+                        log_audit($pdo, $user['id'], '2fa_initiated', '2FA code sent to email');
+                        header("Location: verify_2fa.php");
+                        exit();
+                    } catch (Exception $e) {
+                        // If PHPMailer fails in debug mode, allow login without 2FA
+                        if (env('APP_DEBUG', false)) {
+                            $_SESSION['user_id'] = $user['id'];
+                            $_SESSION['coop_no'] = $user['coop_no'];
+                            $_SESSION['name'] = $user['name'];
+                            $_SESSION['role'] = $user['role'];
+                            $_SESSION['last_activity'] = time();
+                            
+                            log_audit($pdo, $user['id'], 'login_success', 'Login with 2FA enabled but email failed (debug mode)');
+                            
+                            if ($user['role'] === 'admin') {
+                                header("Location: ../admin/index.php");
+                            } else {
+                                header("Location: ../member/dashboard.php");
+                            }
+                            exit();
+                        }
+                        $error = "Failed to send 2FA code. Please contact admin.";
+                    }
                 }
             }
-        } else {
-            $error = "Invalid Coop No. or Password.";
+        } catch (PDOException $e) {
+            if (env('APP_DEBUG', false)) {
+                $error = "Database error: " . $e->getMessage();
+            } else {
+                $error = "An error occurred. Please try again.";
+            }
         }
     }
 }
@@ -132,10 +197,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label class="form-label">Coop No. (e.g. BC01)</label>
                     <input type="text" name="coop_no" class="form-control" required autofocus>
                 </div>
-                        <div class="mb-3">
-                            <label class="form-label">Password</label>
-                            <input type="password" name="password" class="form-control" required>
-                        </div>
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" class="form-control" required>
+                </div>
                 <button type="submit" class="btn btn-primary w-100">Login</button>
                 <div class="auth-footer">Contact admin if you forgot your password.</div>
             </form>

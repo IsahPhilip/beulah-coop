@@ -24,46 +24,84 @@ function respond_json($payload) {
     exit();
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_transaction'])) {
-    $memberId = (int)($_POST['member_id'] ?? 0);
-    $type = $_POST['type'] ?? '';
-    $amount = (float)($_POST['amount'] ?? 0);
-    $date = $_POST['trans_date'] ?? '';
-    $description = trim($_POST['description'] ?? '');
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $isAjax = isset($_POST['ajax']) && $_POST['ajax'] === '1';
-
-    $allowedTypes = ['savings_credit', 'loan_disbursed', 'loan_repayment', 'interest_charged'];
-    if ($memberId <= 0 || !in_array($type, $allowedTypes, true) || $amount <= 0 || $date === '') {
-        $error = 'Please fill in all required fields with valid values.';
-        if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
-    } else {
-        $memberStmt = $pdo->prepare("SELECT coop_no, name FROM users WHERE id = ? AND role = 'member'");
-        $memberStmt->execute([$memberId]);
-        $member = $memberStmt->fetch();
-        if (!$member) {
-            $error = 'Selected member not found.';
+    
+    if (isset($_POST['add_transaction'])) {
+        $memberId = (int)($_POST['member_id'] ?? 0);
+        $type = $_POST['type'] ?? '';
+        $amount = (float)($_POST['amount'] ?? 0);
+        $date = $_POST['trans_date'] ?? '';
+        $description = trim($_POST['description'] ?? '');
+        $allowedTypes = ['savings_credit', 'loan_disbursed', 'loan_repayment', 'interest_charged'];
+        
+        if ($memberId <= 0 || !in_array($type, $allowedTypes, true) || $amount <= 0 || $date === '') {
+            $error = 'Please fill in all required fields with valid values.';
             if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
-        }
+        } else {
+            $memberStmt = $pdo->prepare("SELECT coop_no, name FROM users WHERE id = ? AND role = 'member'");
+            $memberStmt->execute([$memberId]);
+            $member = $memberStmt->fetch();
+            if (!$member) {
+                $error = 'Selected member not found.';
+                if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
+            }
 
-        $stmt = $pdo->prepare("
-            INSERT INTO transactions (user_id, trans_date, type, amount, description, created_by)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([$memberId, $date, $type, $amount, $description, $_SESSION['user_id'] ?? null]);
-        log_audit($pdo, $_SESSION['user_id'], 'transaction_created', "Added {$type} for member {$memberId}");
-        $success = 'Transaction added successfully.';
-        if ($isAjax) {
-            respond_json([
-                'ok' => true,
-                'message' => $success,
-                'transaction' => [
-                    'trans_date' => $date,
-                    'member_label' => $member['name'] . ' (' . $member['coop_no'] . ')',
-                    'type_label' => str_replace('_', ' ', $type),
-                    'amount' => $amount,
-                    'description' => $description
-                ]
-            ]);
+            $stmt = $pdo->prepare("
+                INSERT INTO transactions (user_id, trans_date, type, amount, description, created_by)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([$memberId, $date, $type, $amount, $description, $_SESSION['user_id'] ?? null]);
+            log_audit($pdo, $_SESSION['user_id'], 'transaction_created', "Added {$type} for member {$memberId}");
+            $success = 'Transaction added successfully.';
+            if ($isAjax) {
+                respond_json([
+                    'ok' => true,
+                    'message' => $success,
+                    'transaction' => [
+                        'trans_date' => $date,
+                        'member_label' => $member['name'] . ' (' . $member['coop_no'] . ')',
+                        'type_label' => str_replace('_', ' ', $type),
+                        'amount' => $amount,
+                        'description' => $description
+                    ]
+                ]);
+            }
+        }
+    } elseif (isset($_POST['action'])) {
+        $action = $_POST['action'];
+        $transId = (int)($_POST['id'] ?? 0);
+        
+        if ($action === 'edit') {
+            $type = $_POST['type'] ?? '';
+            $amount = (float)($_POST['amount'] ?? 0);
+            $date = $_POST['trans_date'] ?? '';
+            $description = trim($_POST['description'] ?? '');
+            $allowedTypes = ['savings_credit', 'loan_disbursed', 'loan_repayment', 'interest_charged'];
+            
+            if ($transId <= 0 || !in_array($type, $allowedTypes, true) || $amount <= 0 || $date === '') {
+                $error = 'Please fill in all required fields with valid values.';
+                if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
+            } else {
+                $stmt = $pdo->prepare("
+                    UPDATE transactions 
+                    SET trans_date = ?, type = ?, amount = ?, description = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([$date, $type, $amount, $description, $transId]);
+                log_audit($pdo, $_SESSION['user_id'], 'transaction_updated', "Updated transaction {$transId}");
+                if ($isAjax) respond_json(['ok' => true, 'message' => 'Transaction updated successfully.']);
+            }
+        } elseif ($action === 'delete') {
+            if ($transId <= 0) {
+                $error = 'Invalid transaction ID.';
+                if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
+            } else {
+                $stmt = $pdo->prepare("DELETE FROM transactions WHERE id = ?");
+                $stmt->execute([$transId]);
+                log_audit($pdo, $_SESSION['user_id'], 'transaction_deleted', "Deleted transaction {$transId}");
+                if ($isAjax) respond_json(['ok' => true, 'message' => 'Transaction deleted successfully.']);
+            }
         }
     }
 }
@@ -107,19 +145,38 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                 <label for="dateTo">To</label>
                 <input type="date" id="dateTo" class="form-control form-control-sm">
             </div>
+            <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
+                <i class="bi bi-x-circle me-1"></i>Clear
+            </button>
         </div>
         <table id="transactionsTable" class="table dash-table-grid">
             <thead>
-                <tr><th>Date</th><th>Member</th><th>Type</th><th>Amount</th><th>Description</th></tr>
+                <tr>
+                    <th>Date</th>
+                    <th>Member</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                </tr>
             </thead>
             <tbody>
             <?php foreach ($trans as $t): ?>
-                <tr>
+                <tr data-id="<?= (int)$t['id'] ?>"
+                    data-date="<?= $t['trans_date'] ?>"
+                    data-member="<?= htmlspecialchars($t['name']) ?> (<?= $t['coop_no'] ?>)"
+                    data-type="<?= $t['type'] ?>"
+                    data-amount="<?= $t['amount'] ?>"
+                    data-description="<?= htmlspecialchars($t['description'] ?? '') ?>">
                     <td><?= $t['trans_date'] ?></td>
                     <td><?= htmlspecialchars($t['name']) ?> (<?= $t['coop_no'] ?>)</td>
                     <td><?= str_replace('_', ' ', $t['type']) ?></td>
                     <td><?= format_money($t['amount']) ?></td>
                     <td><?= htmlspecialchars($t['description'] ?? '') ?></td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-delete">Delete</button>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
@@ -180,6 +237,49 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="editTransactionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Transaction</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="" id="editTransactionForm">
+                    <input type="hidden" name="id" id="editTransId">
+                    <div class="d-grid gap-3">
+                        <div>
+                            <label class="form-label">Transaction Type</label>
+                            <select name="type" id="editType" class="form-select" required>
+                                <option value="savings_credit">Savings Credit</option>
+                                <option value="loan_disbursed">Loan Disbursed</option>
+                                <option value="loan_repayment">Loan Repayment</option>
+                                <option value="interest_charged">Interest Charged</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Amount</label>
+                            <input type="number" name="amount" id="editAmount" class="form-control" min="0" step="0.01" required>
+                        </div>
+                        <div>
+                            <label class="form-label">Date</label>
+                            <input type="date" name="trans_date" id="editDate" class="form-control" required>
+                        </div>
+                        <div>
+                            <label class="form-label">Description (optional)</label>
+                            <textarea name="description" id="editDescription" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex justify-content-end">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" name="edit_transaction" class="btn btn-primary">Update Transaction</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
@@ -220,6 +320,12 @@ const transactionsTable = $('#transactionsTable').DataTable({
 dateFrom.addEventListener('change', () => transactionsTable.draw());
 dateTo.addEventListener('change', () => transactionsTable.draw());
 
+function clearFilters() {
+    dateFrom.value = '';
+    dateTo.value = '';
+    transactionsTable.draw();
+}
+
 const params = new URLSearchParams(window.location.search);
 if (params.get('open') === 'add') {
     const modal = new bootstrap.Modal(document.getElementById('addTransactionModal'));
@@ -258,6 +364,75 @@ document.getElementById('addTransactionForm').addEventListener('submit', async f
     showTransactionAlert(json.message || 'Transaction added.', 'success');
     const modal = bootstrap.Modal.getInstance(document.getElementById('addTransactionModal'));
     if (modal) modal.hide();
+});
+
+// Edit Transaction
+document.getElementById('transactionsTable').addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-edit');
+    if (!btn) return;
+    const row = btn.closest('tr');
+    document.getElementById('editTransId').value = row.getAttribute('data-id');
+    document.getElementById('editType').value = row.getAttribute('data-type');
+    document.getElementById('editAmount').value = row.getAttribute('data-amount');
+    document.getElementById('editDate').value = row.getAttribute('data-date');
+    document.getElementById('editDescription').value = row.getAttribute('data-description');
+    const modal = new bootstrap.Modal(document.getElementById('editTransactionModal'));
+    modal.show();
+});
+
+document.getElementById('editTransactionForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    data.append('action', 'edit');
+    data.append('ajax', '1');
+
+    const res = await fetch('', { method: 'POST', body: data });
+    const json = await res.json();
+    if (!json.ok) {
+        showTransactionAlert(json.error || 'Failed to update transaction.', 'danger');
+        return;
+    }
+
+    const id = document.getElementById('editTransId').value;
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (row) {
+        const rowApi = transactionsTable.row(row);
+        const rowData = rowApi.data();
+        rowData[2] = document.getElementById('editType').options[document.getElementById('editType').selectedIndex].text;
+        rowData[3] = '₦' + Number(document.getElementById('editAmount').value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        rowData[0] = document.getElementById('editDate').value;
+        rowData[4] = document.getElementById('editDescription').value;
+        rowApi.data(rowData).draw(false);
+    }
+    
+    showTransactionAlert(json.message || 'Transaction updated.', 'success');
+    bootstrap.Modal.getInstance(document.getElementById('editTransactionModal')).hide();
+});
+
+// Delete Transaction
+document.getElementById('transactionsTable').addEventListener('click', async function(e) {
+    const btn = e.target.closest('.btn-delete');
+    if (!btn) return;
+    const row = btn.closest('tr');
+    const transId = row.getAttribute('data-id');
+    const memberLabel = row.getAttribute('data-member');
+    if (!confirm(`Delete this transaction for ${memberLabel}? This cannot be undone.`)) return;
+
+    const data = new FormData();
+    data.append('action', 'delete');
+    data.append('ajax', '1');
+    data.append('id', transId);
+
+    const res = await fetch('', { method: 'POST', body: data });
+    const json = await res.json();
+    if (!json.ok) {
+        showTransactionAlert(json.error || 'Failed to delete transaction.', 'danger');
+        return;
+    }
+
+    transactionsTable.row(row).remove().draw(false);
+    showTransactionAlert(json.message || 'Transaction deleted.', 'success');
 });
 </script>
 <?php include '../includes/footer.php'; ?>

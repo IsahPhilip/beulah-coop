@@ -1,5 +1,5 @@
 <?php
-// admin/members.php
+// admin/members.php - Member Management with DataTables
 require_once '../includes/auth.php';
 if ($_SESSION['role'] === 'member') {
     header("Location: ../member/dashboard.php");
@@ -157,28 +157,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Fetch members with balances
 $stmt = $pdo->query("
     SELECT u.*, 
-           SUM(CASE WHEN t.type IN ('savings_credit') THEN t.amount ELSE 0 END) as savings,
-           SUM(CASE WHEN t.type = 'loan_disbursed' THEN t.amount ELSE 0 END) -
-           SUM(CASE WHEN t.type = 'loan_repayment' THEN t.amount ELSE 0 END) as loan_outstanding
+           COALESCE(SUM(CASE WHEN t.type IN ('savings_credit') THEN t.amount ELSE 0 END), 0) as savings,
+           COALESCE(SUM(CASE WHEN t.type = 'loan_disbursed' THEN t.amount ELSE 0 END), 0) -
+           COALESCE(SUM(CASE WHEN t.type = 'loan_repayment' THEN t.amount ELSE 0 END), 0) as loan_outstanding
     FROM users u 
     LEFT JOIN transactions t ON u.id = t.user_id 
+    WHERE u.role = 'member'
     GROUP BY u.id 
     ORDER BY u.coop_no
 ");
 $members = $stmt->fetchAll();
+
+// Calculate summary
+$totalMembers = count($members);
+$totalSavings = 0;
+$totalLoans = 0;
+foreach ($members as $m) {
+    $totalSavings += (float)($m['savings'] ?? 0);
+    $totalLoans += (float)($m['loan_outstanding'] ?? 0);
+}
 ?>
 
 <?php
 $pageTitle = 'Members - Beulah Coop';
 $useDashboardLayout = true;
-$extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">';
+$extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">'
+    . '<link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet">';
 ?>
 <?php include '../includes/header.php'; ?>
 <div class="dash-grid">
     <div class="dash-section-head">
-        <h2 class="dash-title">All Members & Balances</h2>
+        <h2 class="dash-title">All Members</h2>
         <div class="dash-section-actions">
             <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addMemberModal">Add Member</button>
             <a class="btn btn-outline-primary" href="import.php">Import Excel</a>
@@ -191,18 +203,34 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
         <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
     <?php endif; ?>
 
-    <div class="dash-split">
-        <div class="dash-panel dash-panel-table">
-            <div class="dash-panel-title">Members</div>
-            <table id="membersTable" class="table dash-table-grid">
+    <!-- Summary Cards -->
+    <div class="dash-cards">
+        <div class="dash-card">
+            <div class="dash-card-label">Total Members</div>
+            <div class="dash-card-value"><?= $totalMembers ?></div>
+        </div>
+        <div class="dash-card">
+            <div class="dash-card-label">Total Savings</div>
+            <div class="dash-card-value"><?= format_money($totalSavings) ?></div>
+        </div>
+        <div class="dash-card">
+            <div class="dash-card-label">Total Loans</div>
+            <div class="dash-card-value text-danger"><?= format_money($totalLoans) ?></div>
+        </div>
+    </div>
+
+    <div class="dash-panel dash-panel-table">
+        <div class="dash-panel-title">Members</div>
+        <table id="membersTable" class="table dash-table-grid">
             <thead>
                 <tr>
                     <th>Coop No.</th>
                     <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
                     <th>Savings</th>
                     <th>Loan Outstanding</th>
-                    <th>Phone</th>
-                    <th>Action</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -214,9 +242,10 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                     data-phone="<?= htmlspecialchars($m['phone'] ?? '') ?>">
                     <td><?= htmlspecialchars($m['coop_no']) ?></td>
                     <td><?= htmlspecialchars($m['name']) ?></td>
+                    <td><?= htmlspecialchars($m['email'] ?? '') ?></td>
+                    <td><?= htmlspecialchars($m['phone'] ?? '') ?></td>
                     <td><?= format_money($m['savings'] ?? 0) ?></td>
                     <td><?= format_money($m['loan_outstanding'] ?? 0) ?></td>
-                    <td><?= htmlspecialchars($m['phone'] ?? '') ?></td>
                     <td>
                         <a href="transactions.php?user_id=<?= $m['id'] ?>" class="btn btn-sm btn-primary">View</a>
                         <button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
@@ -225,44 +254,7 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                 </tr>
             <?php endforeach; ?>
             </tbody>
-            </table>
-        </div>
-        <aside class="dash-panel dash-summary">
-            <div class="dash-panel-title">Summary</div>
-            <div class="dash-summary-card">
-                <div class="dash-summary-label">Total Members</div>
-                <div class="dash-summary-value"><?= count($members) ?></div>
-            </div>
-            <?php
-            $totalSavings = 0;
-            $totalLoans = 0;
-            foreach ($members as $m) {
-                $totalSavings += (float)($m['savings'] ?? 0);
-                $totalLoans += (float)($m['loan_outstanding'] ?? 0);
-            }
-            ?>
-            <div class="dash-summary-card">
-                <div class="dash-summary-label">Total Savings</div>
-                <div class="dash-summary-value"><?= format_money($totalSavings) ?></div>
-            </div>
-            <div class="dash-summary-card">
-                <div class="dash-summary-label">Total Loans</div>
-                <div class="dash-summary-value"><?= format_money($totalLoans) ?></div>
-            </div>
-            <div class="dash-summary-card">
-                <div class="dash-summary-label">Savings vs Loans</div>
-                <div class="dash-donut">
-                    <canvas id="summaryDonut"></canvas>
-                </div>
-                <div class="dash-donut-legend">
-                    <span><i class="dot dot-savings"></i>Savings</span>
-                    <span><i class="dot dot-loans"></i>Loans</span>
-                </div>
-            </div>
-            <div class="dash-summary-note">
-                Updated on <?= date('j M Y') ?>
-            </div>
-        </aside>
+        </table>
     </div>
 </div>
 
@@ -285,16 +277,16 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                             <input type="text" name="name" class="form-control" required>
                         </div>
                         <div>
-                            <label class="form-label">Password (leave blank to auto-generate)</label>
-                            <input type="text" name="password" class="form-control">
-                        </div>
-                        <div>
                             <label class="form-label">Email (optional)</label>
                             <input type="email" name="email" class="form-control">
                         </div>
                         <div>
                             <label class="form-label">Phone (optional)</label>
                             <input type="text" name="phone" class="form-control">
+                        </div>
+                        <div>
+                            <label class="form-label">Password (leave blank to auto-generate)</label>
+                            <input type="text" name="password" class="form-control">
                         </div>
                     </div>
                     <div class="mt-3 d-flex align-items-center justify-content-between">
@@ -346,28 +338,23 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
-const membersTable = $('#membersTable').DataTable({ "searching": true, "pageLength": 25 });
-
-const summaryCtx = document.getElementById('summaryDonut');
-if (summaryCtx) {
-    new Chart(summaryCtx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Savings', 'Loans'],
-            datasets: [{
-                data: [<?= (float)$totalSavings ?>, <?= (float)$totalLoans ?>],
-                backgroundColor: ['#7a5cff', '#ff9f7a'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            cutout: '70%',
-            plugins: { legend: { display: false } },
-            responsive: true
-        }
-    });
-}
+const membersTable = $('#membersTable').DataTable({
+    searching: true,
+    pageLength: 25,
+    dom: '<"dt-top"lfB>rt<"dt-bottom"ip>',
+    buttons: [
+        { extend: 'csvHtml5', className: 'btn btn-outline-primary btn-sm', text: 'Export CSV' },
+        { extend: 'pdfHtml5', className: 'btn btn-outline-primary btn-sm', text: 'Export PDF', orientation: 'landscape' }
+    ]
+});
 
 function showMemberAlert(message, type) {
     const el = document.getElementById('memberAlerts');
@@ -392,9 +379,10 @@ document.getElementById('addMemberForm').addEventListener('submit', async functi
     const rowHtml = [
         m.coop_no,
         m.name,
-        '₦0.00',
-        '₦0.00',
+        m.email || '',
         m.phone || '',
+        '₦0.00',
+        '₦0.00',
         `<a href="transactions.php?user_id=${m.id}" class="btn btn-sm btn-primary">View</a>
          <button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
          <button type="button" class="btn btn-sm btn-outline-danger btn-delete">Delete</button>`
@@ -459,7 +447,8 @@ document.getElementById('saveMemberChanges').addEventListener('click', async fun
         const rowApi = membersTable.row(row);
         const rowData = rowApi.data();
         rowData[1] = row.getAttribute('data-name');
-        rowData[4] = row.getAttribute('data-phone');
+        rowData[2] = row.getAttribute('data-email');
+        rowData[3] = row.getAttribute('data-phone');
         rowApi.data(rowData).draw(false);
     }
     showMemberAlert(json.message || 'Member updated.', 'success');

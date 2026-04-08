@@ -82,11 +82,6 @@ $useDashboardLayout = true;
             </div>
         </div>
     </div>
-
-    <div class="mt-4">
-        <a href="download-ledger.php" class="btn btn-primary">Download My Ledger (PDF)</a>
-        <a href="download-ledger-excel.php" class="btn btn-secondary">Download Excel</a>
-    </div>
 </div>
 
 <script>
