@@ -2,10 +2,16 @@
 // admin/transactions.php - Basic CRUD view (expand as needed)
 require_once '../includes/auth.php';
 if ($_SESSION['role'] === 'member') {
+    if (is_ajax_request()) {
+        json_exit(['ok' => false, 'error' => 'Access denied. Admins only.'], 403);
+    }
     header("Location: ../member/dashboard.php");
     exit();
 }
 if ($_SESSION['role'] !== 'admin') {
+    if (is_ajax_request()) {
+        json_exit(['ok' => false, 'error' => 'Access denied. Admins only.'], 403);
+    }
     header("Location: ../login.php");
     exit();
 }
@@ -52,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 VALUES (?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([$memberId, $date, $type, $amount, $description, $_SESSION['user_id'] ?? null]);
+            $newId = (int)$pdo->lastInsertId();
             log_audit($pdo, $_SESSION['user_id'], 'transaction_created', "Added {$type} for member {$memberId}");
             $success = 'Transaction added successfully.';
             if ($isAjax) {
@@ -59,9 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'ok' => true,
                     'message' => $success,
                     'transaction' => [
+                        'id' => $newId,
                         'trans_date' => $date,
                         'member_label' => $member['name'] . ' (' . $member['coop_no'] . ')',
                         'type_label' => str_replace('_', ' ', $type),
+                        'type' => $type,
                         'amount' => $amount,
                         'description' => $description
                     ]
@@ -337,14 +346,34 @@ function showTransactionAlert(message, type) {
     el.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
 }
 
+async function postJson(data) {
+    const res = await fetch('', {
+        method: 'POST',
+        body: data,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+        throw new Error('Session expired or unexpected response. Please refresh and log in again.');
+    }
+    const json = await res.json();
+    return { res, json };
+}
+
 document.getElementById('addTransactionForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const form = e.currentTarget;
     const data = new FormData(form);
+    data.append('add_transaction', '1');
     data.append('ajax', '1');
 
-    const res = await fetch('', { method: 'POST', body: data });
-    const json = await res.json();
+    let json;
+    try {
+        ({ json } = await postJson(data));
+    } catch (err) {
+        showTransactionAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
+        return;
+    }
     if (!json.ok) {
         showTransactionAlert(json.error || 'Failed to add transaction.', 'danger');
         return;
@@ -356,10 +385,21 @@ document.getElementById('addTransactionForm').addEventListener('submit', async f
         t.member_label,
         t.type_label,
         '₦' + Number(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        t.description || ''
+        t.description || '',
+        `<button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
+         <button type="button" class="btn btn-sm btn-outline-danger btn-delete">Delete</button>`
     ];
 
-    transactionsTable.row.add(rowHtml).draw(false);
+    const rowApi = transactionsTable.row.add(rowHtml).draw(false);
+    const rowNode = rowApi.node();
+    if (rowNode) {
+        rowNode.setAttribute('data-id', t.id);
+        rowNode.setAttribute('data-date', t.trans_date);
+        rowNode.setAttribute('data-member', t.member_label);
+        rowNode.setAttribute('data-type', t.type);
+        rowNode.setAttribute('data-amount', t.amount);
+        rowNode.setAttribute('data-description', t.description || '');
+    }
     form.reset();
     showTransactionAlert(json.message || 'Transaction added.', 'success');
     const modal = bootstrap.Modal.getInstance(document.getElementById('addTransactionModal'));
@@ -387,8 +427,13 @@ document.getElementById('editTransactionForm').addEventListener('submit', async 
     data.append('action', 'edit');
     data.append('ajax', '1');
 
-    const res = await fetch('', { method: 'POST', body: data });
-    const json = await res.json();
+    let json;
+    try {
+        ({ json } = await postJson(data));
+    } catch (err) {
+        showTransactionAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
+        return;
+    }
     if (!json.ok) {
         showTransactionAlert(json.error || 'Failed to update transaction.', 'danger');
         return;
@@ -424,8 +469,13 @@ document.getElementById('transactionsTable').addEventListener('click', async fun
     data.append('ajax', '1');
     data.append('id', transId);
 
-    const res = await fetch('', { method: 'POST', body: data });
-    const json = await res.json();
+    let json;
+    try {
+        ({ json } = await postJson(data));
+    } catch (err) {
+        showTransactionAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
+        return;
+    }
     if (!json.ok) {
         showTransactionAlert(json.error || 'Failed to delete transaction.', 'danger');
         return;

@@ -110,67 +110,67 @@ $useDashboardLayout = true;
 </div>
 
 <script>
-const monthlyCtx = document.getElementById('monthlyChart');
-const portfolioCtx = document.getElementById('portfolioChart');
+    const monthlyCtx = document.getElementById('monthlyChart');
+    const portfolioCtx = document.getElementById('portfolioChart');
 
-new Chart(monthlyCtx, {
-    type: 'line',
-    data: {
-        labels: <?= json_encode($labels) ?>,
-        datasets: [
-            {
-                label: 'Savings Credits',
-                data: <?= json_encode($savingsData) ?>,
-                borderColor: '#7a5cff',
-                backgroundColor: 'rgba(122, 92, 255, 0.15)',
-                tension: 0.35,
-                fill: true
-            },
-            {
-                label: 'Loans Disbursed',
-                data: <?= json_encode($loansData) ?>,
-                borderColor: '#ff9f7a',
-                backgroundColor: 'rgba(255, 159, 122, 0.15)',
-                tension: 0.35,
-                fill: true
-            },
-            {
-                label: 'Loan Repayments',
-                data: <?= json_encode($repaymentData) ?>,
-                borderColor: '#2bb673',
-                backgroundColor: 'rgba(43, 182, 115, 0.12)',
-                tension: 0.35,
-                fill: true
+    new Chart(monthlyCtx, {
+        type: 'line',
+        data: {
+            labels: <?= json_encode($labels) ?>,
+            datasets: [
+                {
+                    label: 'Savings Credits',
+                    data: <?= json_encode($savingsData) ?>,
+                    borderColor: '#7a5cff',
+                    backgroundColor: 'rgba(122, 92, 255, 0.15)',
+                    tension: 0.35,
+                    fill: true
+                },
+                {
+                    label: 'Loans Disbursed',
+                    data: <?= json_encode($loansData) ?>,
+                    borderColor: '#ff9f7a',
+                    backgroundColor: 'rgba(255, 159, 122, 0.15)',
+                    tension: 0.35,
+                    fill: true
+                },
+                {
+                    label: 'Loan Repayments',
+                    data: <?= json_encode($repaymentData) ?>,
+                    borderColor: '#2bb673',
+                    backgroundColor: 'rgba(43, 182, 115, 0.12)',
+                    tension: 0.35,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } },
+            scales: {
+                y: { ticks: { callback: value => '₦' + value } }
             }
-        ]
-    },
-    options: {
-        responsive: true,
-        plugins: { legend: { position: 'bottom' } },
-        scales: {
-            y: { ticks: { callback: value => '₦' + value } }
         }
-    }
-});
+    });
 
-new Chart(portfolioCtx, {
-    type: 'doughnut',
-    data: {
-        labels: ['Savings', 'Loans Issued', 'Interest'],
-        datasets: [{
-            data: [
-                <?= (float)($totals['total_savings'] ?? 0) ?>,
-                <?= (float)($totals['total_loans_issued'] ?? 0) ?>,
-                <?= (float)($totals['total_interest'] ?? 0) ?>
-            ],
-            backgroundColor: ['#7a5cff', '#ff9f7a', '#ffd56a'],
-            borderWidth: 0
-        }]
-    },
-    options: {
-        cutout: '70%',
-        plugins: { legend: { position: 'bottom' } }
-    }
-});
+    new Chart(portfolioCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Savings', 'Loans Issued', 'Interest'],
+            datasets: [{
+                data: [
+                    <?= (float)($totals['total_savings'] ?? 0) ?>,
+                    <?= (float)($totals['total_loans_issued'] ?? 0) ?>,
+                    <?= (float)($totals['total_interest'] ?? 0) ?>
+                ],
+                backgroundColor: ['#7a5cff', '#ff9f7a', '#ffd56a'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            cutout: '70%',
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
 </script>
 <?php include '../includes/footer.php'; ?>

@@ -27,7 +27,6 @@ if ($basePath === '') {
     </footer>
 <?php endif; ?>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="<?= $basePath ?>/assets/js/dashboard.js"></script>
 </body>
 </html>

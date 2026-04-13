@@ -20,7 +20,7 @@ session_start();
         }
         .landing2-feature:hover, .landing2-steps div:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 30px rgba(90, 70, 140, 0.2);
+            box-shadow: 0 15px 30px rgba(97, 4, 95, 0.2);
         }
     </style>
 </head>
@@ -31,7 +31,7 @@ session_start();
             <a href="#features">Features</a>
             <a href="#how">How it works</a>
             <a href="#contact">Contact</a>
-            <a href="login.php" class="btn btn-primary btn-sm">Login</a>
+            <a href="login.php" class="btn btn-primary btn-sm" style="color:white">Login</a>
         </div>
     </header>
 
@@ -81,17 +81,17 @@ session_start();
         <h2>Everything your cooperative needs</h2>
         <div class="landing2-grid">
             <div class="landing2-feature">
-                <i class="bi bi-people-fill text-primary mb-2" style="font-size: 2rem;"></i>
+                <i class="bi bi-people-fill landing2-icon mb-2"></i>
                 <h3>Member Management</h3>
                 <p>Create, edit, and manage members with secure access and clear records.</p>
             </div>
             <div class="landing2-feature">
-                <i class="bi bi-bar-chart-line-fill text-primary mb-2" style="font-size: 2rem;"></i>
+                <i class="bi bi-bar-chart-line-fill landing2-icon mb-2"></i>
                 <h3>Transactions & Reports</h3>
                 <p>Track savings, loans, and repayments with exportable reports.</p>
             </div>
             <div class="landing2-feature">
-                <i class="bi bi-file-earmark-excel-fill text-primary mb-2" style="font-size: 2rem;"></i>
+                <i class="bi bi-file-earmark-excel-fill landing2-icon mb-2"></i>
                 <h3>Excel Ledger Import</h3>
                 <p>Upload and reconcile your cooperative ledger in seconds.</p>
             </div>
@@ -102,19 +102,19 @@ session_start();
         <h2>How it works</h2>
         <div class="landing2-steps">
             <div>
-                <i class="bi bi-cloud-upload-fill text-primary mb-2" style="font-size: 2rem;"></i>
+                <i class="bi bi-cloud-upload-fill landing2-icon mb-2"></i>
                 <span>01</span>
                 <h4>Upload your ledger</h4>
                 <p>Import member data and transactions from Excel.</p>
             </div>
             <div>
-                <i class="bi bi-gear-fill text-primary mb-2" style="font-size: 2rem;"></i>
+                <i class="bi bi-gear-fill landing2-icon mb-2"></i>
                 <span>02</span>
                 <h4>Manage accounts</h4>
                 <p>Monitor savings, loans, and repayments in real time.</p>
             </div>
             <div>
-                <i class="bi bi-download-fill text-primary mb-2" style="font-size: 2rem;"></i>
+                <i class="bi bi-download-fill landing2-icon mb-2"></i>
                 <span>03</span>
                 <h4>Export reports</h4>
                 <p>Download reports for meetings and auditing.</p>
@@ -160,11 +160,11 @@ session_start();
                     datasets: [{
                         label: 'Monthly Savings',
                         data: [950000, 1020000, 1100000, 1180000, 1220000, 1245000],
-                        borderColor: '#7a5cff',
-                        backgroundColor: 'rgba(122, 92, 255, 0.1)',
+                        borderColor: '#61045F',
+                        backgroundColor: 'rgba(97, 4, 95, 0.1)',
                         tension: 0.4,
                         fill: true,
-                        pointBackgroundColor: '#7a5cff',
+                        pointBackgroundColor: '#61045F',
                         pointBorderColor: '#fff',
                         pointBorderWidth: 2
                     }]
