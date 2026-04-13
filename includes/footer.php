@@ -6,9 +6,7 @@ $leaf = strtolower(basename($basePath));
 if (in_array($leaf, ['admin', 'member', 'auth', 'api', 'includes'], true)) {
     $basePath = rtrim(dirname($basePath), '/\\');
 }
-if ($basePath === '') {
-    $basePath = '/';
-}
+$basePath = rtrim($basePath, '/');
 ?>
 <?php if (!empty($useDashboardLayout)): ?>
             </section>

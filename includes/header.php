@@ -6,9 +6,7 @@ $leaf = strtolower(basename($scriptDir));
 if (in_array($leaf, ['admin', 'member', 'auth', 'api', 'includes'], true)) {
     $basePath = rtrim(dirname($scriptDir), '/\\');
 }
-if ($basePath === '') {
-    $basePath = '/';
-}
+$basePath = rtrim($basePath, '/');
 
 $role = $_SESSION['role'] ?? null;
 $name = $_SESSION['name'] ?? 'User';
