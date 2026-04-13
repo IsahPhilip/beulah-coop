@@ -21,6 +21,7 @@ jobs:
           port: 21
           local-dir: ./
           server-dir: /htdocs/
+          state-name: .ftp-deploy-sync-state.json
           exclude: |
             **/.git*
             **/.git*/**
