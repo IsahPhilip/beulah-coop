@@ -1,19 +1,29 @@
 <?php
 // import-excel.php - Improved version with secure file upload
+require_once 'includes/auth.php';
 require_once 'vendor/autoload.php';
-require_once 'config/db.php';
-require_once 'includes/functions.php';
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Calculation\Exception as CalcException;
 
-session_start();
-
 // Security: Only admin can access
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (($_SESSION['role'] ?? '') !== 'admin') {
     die("Access denied. Admin login required.");
 }
 
-echo "<h2>Beulah Coop - Excel Import</h2>";
+echo '<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Import - Beulah Coop</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="assets/css/custom.css" rel="stylesheet">
+</head>
+<body class="dash-body">
+    <div class="container py-4">
+        <div class="dash-panel">
+            <div class="dash-panel-title">Beulah Coop - Excel Import</div>';
 flush();
 
 $uploadDir = 'uploads/';
@@ -47,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['excel_file'])) {
         die("Failed to save uploaded file.");
     }
 
-    echo "File uploaded successfully.<br>";
+    echo '<div class="alert alert-success">File uploaded successfully.</div>';
 } else {
     die("No file uploaded.");
 }
@@ -59,7 +69,7 @@ if (!file_exists($inputFileName)) {
 // Load spreadsheet
 $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($inputFileName);
 
-echo "Processing Excel file...<br>";
+echo '<p class="text-muted">Processing Excel file...</p>';
 
 function normalize_coop_no($value) {
     $value = (string)$value;
@@ -150,7 +160,7 @@ while ($row <= $lastRow) {
     $row++;
 }
 
-echo "Found " . count($members) . " members.<br>";
+echo '<p class="text-muted">Found ' . count($members) . ' members.</p>';
 
 // Clear existing member transactions and remove members not in sheet
 $pdo->beginTransaction();
@@ -158,7 +168,7 @@ try {
     $pdo->exec("DELETE FROM transactions WHERE user_id IN (SELECT id FROM users WHERE role = 'member')");
     delete_members_not_in_list($pdo, array_keys($members));
     $pdo->commit();
-    echo "Cleared existing member transactions and removed members not in sheet.<br>";
+    echo '<p class="text-muted">Cleared existing member transactions and removed members not in sheet.</p>';
 } catch (Exception $e) {
     $pdo->rollBack();
     die("Failed to clear existing data: " . $e->getMessage());
@@ -188,7 +198,7 @@ foreach ($members as $coop => $data) {
     $imported++;
 }
 
-echo "$imported members imported/updated.<br><br>";
+echo '<p class="text-muted">' . $imported . ' members imported/updated.</p>';
 
 if (!empty($generatedPasswords)) {
     $passwordFile = $uploadDir . 'import_passwords_' . date('Ymd_His') . '.csv';
@@ -198,7 +208,7 @@ if (!empty($generatedPasswords)) {
         fputcsv($fp, $row);
     }
     fclose($fp);
-    echo "Temporary passwords generated for new members. File: " . basename($passwordFile) . "<br><br>";
+    echo '<div class="alert alert-info">Temporary passwords generated for new members. File: ' . basename($passwordFile) . '</div>';
 }
 
 // ======================
@@ -272,12 +282,12 @@ for ($i = 1; $i <= 55; $i++) {
     }
 }
 
-echo "<strong>Import completed successfully!</strong><br>";
-echo "Members: $imported | Transactions processed: $transCount<br><br>";
+echo '<div class="alert alert-success mb-3"><strong>Import completed successfully!</strong></div>';
+echo '<p class="text-muted">Members: ' . $imported . ' | Transactions processed: ' . $transCount . '</p>';
 
 log_audit($pdo, $_SESSION['user_id'], 'excel_import', "Imported $imported members and $transCount transactions");
 
-echo '<a href="admin/index.php" class="btn btn-primary">Go to Admin Dashboard</a>';
+echo '<a href="admin/index.php" class="btn btn-primary mt-2">Go to Admin Dashboard</a>';
 
 // Helper function
 function insertTransaction($pdo, $userId, $date, $type, $amount, $desc, &$counter) {
@@ -290,3 +300,7 @@ function insertTransaction($pdo, $userId, $date, $type, $amount, $desc, &$counte
     $counter++;
 }
 ?>
+        </div>
+    </div>
+</body>
+</html>
