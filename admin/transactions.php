@@ -348,18 +348,36 @@ function showTransactionAlert(message, type) {
 
 async function postJson(data) {
     try {
+        console.log('Starting AJAX request...');
         const res = await fetch('', {
             method: 'POST',
             body: data,
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
+        console.log('Response received:', res);
+        
         const contentType = res.headers.get('content-type') || '';
+        console.log('Content-Type:', contentType);
+        
         if (!contentType.includes('application/json')) {
             const text = await res.text();
             console.error('Non-JSON response:', text);
-            throw new Error('Session expired or unexpected response. Please refresh and log in again.');
+            console.error('Status:', res.status);
+            console.error('Status Text:', res.statusText);
+            
+            if (res.status === 401) {
+                throw new Error('Authentication required. Please log in again.');
+            } else if (res.status === 403) {
+                throw new Error('Access denied. Admins only.');
+            } else if (res.status === 500) {
+                throw new Error('Server error. Please try again later.');
+            } else {
+                throw new Error('Session expired or unexpected response. Please refresh and log in again.');
+            }
         }
+        
         const json = await res.json();
+        console.log('JSON response:', json);
         return { res, json };
     } catch (err) {
         console.error('Fetch error:', err);
