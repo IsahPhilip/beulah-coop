@@ -347,17 +347,24 @@ function showTransactionAlert(message, type) {
 }
 
 async function postJson(data) {
-    const res = await fetch('', {
-        method: 'POST',
-        body: data,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
+    try {
+        const res = await fetch('', {
+            method: 'POST',
+            body: data,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            const text = await res.text();
+            console.error('Non-JSON response:', text);
+            throw new Error('Session expired or unexpected response. Please refresh and log in again.');
+        }
+        const json = await res.json();
+        return { res, json };
+    } catch (err) {
+        console.error('Fetch error:', err);
         throw new Error('Session expired or unexpected response. Please refresh and log in again.');
     }
-    const json = await res.json();
-    return { res, json };
 }
 
 document.getElementById('addTransactionForm').addEventListener('submit', async function(e) {
