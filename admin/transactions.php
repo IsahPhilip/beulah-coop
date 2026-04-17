@@ -30,6 +30,33 @@ function respond_json($payload) {
     exit();
 }
 
+function transaction_has_created_by_column(PDO $pdo): bool
+{
+    static $hasCreatedBy = null;
+
+    if ($hasCreatedBy !== null) {
+        return $hasCreatedBy;
+    }
+
+    try {
+        $stmt = $pdo->query("SHOW COLUMNS FROM transactions LIKE 'created_by'");
+        $hasCreatedBy = (bool)$stmt->fetch();
+    } catch (Throwable $e) {
+        $hasCreatedBy = false;
+    }
+
+    return $hasCreatedBy;
+}
+
+function safe_log_audit(PDO $pdo, $userId, string $action, string $details = ''): void
+{
+    try {
+        log_audit($pdo, $userId, $action, $details);
+    } catch (Throwable $e) {
+        error_log('Audit log failed: ' . $e->getMessage());
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $isAjax = isset($_POST['ajax']) && $_POST['ajax'] === '1';
     
@@ -53,28 +80,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
             }
 
-            $stmt = $pdo->prepare("
-                INSERT INTO transactions (user_id, trans_date, type, amount, description, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([$memberId, $date, $type, $amount, $description, $_SESSION['user_id'] ?? null]);
-            $newId = (int)$pdo->lastInsertId();
-            log_audit($pdo, $_SESSION['user_id'], 'transaction_created', "Added {$type} for member {$memberId}");
-            $success = 'Transaction added successfully.';
-            if ($isAjax) {
-                respond_json([
-                    'ok' => true,
-                    'message' => $success,
-                    'transaction' => [
-                        'id' => $newId,
-                        'trans_date' => $date,
-                        'member_label' => $member['name'] . ' (' . $member['coop_no'] . ')',
-                        'type_label' => str_replace('_', ' ', $type),
-                        'type' => $type,
-                        'amount' => $amount,
-                        'description' => $description
-                    ]
-                ]);
+            try {
+                if (transaction_has_created_by_column($pdo)) {
+                    $stmt = $pdo->prepare("
+                        INSERT INTO transactions (user_id, trans_date, type, amount, description, created_by)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ");
+                    $stmt->execute([$memberId, $date, $type, $amount, $description, $_SESSION['user_id'] ?? null]);
+                } else {
+                    $stmt = $pdo->prepare("
+                        INSERT INTO transactions (user_id, trans_date, type, amount, description)
+                        VALUES (?, ?, ?, ?, ?)
+                    ");
+                    $stmt->execute([$memberId, $date, $type, $amount, $description]);
+                }
+
+                $newId = (int)$pdo->lastInsertId();
+                safe_log_audit($pdo, $_SESSION['user_id'], 'transaction_created', "Added {$type} for member {$memberId}");
+                $success = 'Transaction added successfully.';
+                if ($isAjax) {
+                    respond_json([
+                        'ok' => true,
+                        'message' => $success,
+                        'transaction' => [
+                            'id' => $newId,
+                            'trans_date' => $date,
+                            'member_label' => $member['name'] . ' (' . $member['coop_no'] . ')',
+                            'type_label' => str_replace('_', ' ', $type),
+                            'type' => $type,
+                            'amount' => $amount,
+                            'description' => $description
+                        ]
+                    ]);
+                }
+            } catch (Throwable $e) {
+                error_log('Transaction insert failed: ' . $e->getMessage());
+                $error = env('APP_DEBUG', false)
+                    ? 'Failed to add transaction: ' . $e->getMessage()
+                    : 'Failed to add transaction. Please try again later.';
+                if ($isAjax) {
+                    http_response_code(500);
+                    respond_json(['ok' => false, 'error' => $error]);
+                }
             }
         }
     } elseif (isset($_POST['action'])) {
@@ -98,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     WHERE id = ?
                 ");
                 $stmt->execute([$date, $type, $amount, $description, $transId]);
-                log_audit($pdo, $_SESSION['user_id'], 'transaction_updated', "Updated transaction {$transId}");
+                safe_log_audit($pdo, $_SESSION['user_id'], 'transaction_updated', "Updated transaction {$transId}");
                 if ($isAjax) respond_json(['ok' => true, 'message' => 'Transaction updated successfully.']);
             }
         } elseif ($action === 'delete') {
@@ -108,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $stmt = $pdo->prepare("DELETE FROM transactions WHERE id = ?");
                 $stmt->execute([$transId]);
-                log_audit($pdo, $_SESSION['user_id'], 'transaction_deleted', "Deleted transaction {$transId}");
+                safe_log_audit($pdo, $_SESSION['user_id'], 'transaction_deleted', "Deleted transaction {$transId}");
                 if ($isAjax) respond_json(['ok' => true, 'message' => 'Transaction deleted successfully.']);
             }
         }
@@ -381,7 +428,9 @@ async function postJson(data) {
         return { res, json };
     } catch (err) {
         console.error('Fetch error:', err);
-        throw new Error('Session expired or unexpected response. Please refresh and log in again.');
+        throw err instanceof Error
+            ? err
+            : new Error('Unexpected response. Please refresh and try again.');
     }
 }
 
