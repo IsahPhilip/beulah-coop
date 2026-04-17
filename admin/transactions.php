@@ -30,24 +30,6 @@ function respond_json($payload) {
     exit();
 }
 
-function transaction_has_created_by_column(PDO $pdo): bool
-{
-    static $hasCreatedBy = null;
-
-    if ($hasCreatedBy !== null) {
-        return $hasCreatedBy;
-    }
-
-    try {
-        $stmt = $pdo->query("SHOW COLUMNS FROM transactions LIKE 'created_by'");
-        $hasCreatedBy = (bool)$stmt->fetch();
-    } catch (Throwable $e) {
-        $hasCreatedBy = false;
-    }
-
-    return $hasCreatedBy;
-}
-
 function safe_log_audit(PDO $pdo, $userId, string $action, string $details = ''): void
 {
     try {
@@ -81,21 +63,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             try {
-                if (transaction_has_created_by_column($pdo)) {
-                    $stmt = $pdo->prepare("
-                        INSERT INTO transactions (user_id, trans_date, type, amount, description, created_by)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ");
-                    $stmt->execute([$memberId, $date, $type, $amount, $description, $_SESSION['user_id'] ?? null]);
-                } else {
-                    $stmt = $pdo->prepare("
-                        INSERT INTO transactions (user_id, trans_date, type, amount, description)
-                        VALUES (?, ?, ?, ?, ?)
-                    ");
-                    $stmt->execute([$memberId, $date, $type, $amount, $description]);
-                }
-
-                $newId = (int)$pdo->lastInsertId();
+                $newId = create_transaction(
+                    $pdo,
+                    $memberId,
+                    $date,
+                    $type,
+                    $amount,
+                    $description,
+                    $_SESSION['user_id'] ?? null
+                );
                 safe_log_audit($pdo, $_SESSION['user_id'], 'transaction_created', "Added {$type} for member {$memberId}");
                 $success = 'Transaction added successfully.';
                 if ($isAjax) {

@@ -109,8 +109,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if ($loan) {
                 // Create transaction record
-                $stmt = $pdo->prepare("INSERT INTO transactions (user_id, trans_date, type, amount, description, created_by) VALUES (?, CURDATE(), 'loan_disbursed', ?, 'Loan disbursed', ?)");
-                $stmt->execute([$loan['user_id'], $loan['amount'], $_SESSION['user_id']]);
+                create_transaction(
+                    $pdo,
+                    (int)$loan['user_id'],
+                    date('Y-m-d'),
+                    'loan_disbursed',
+                    (float)$loan['amount'],
+                    'Loan disbursed',
+                    $_SESSION['user_id']
+                );
                 
                 $notificationMsg = "Your loan of " . format_money($loan['amount']) . " has been disbursed to your account.";
                 $stmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)");

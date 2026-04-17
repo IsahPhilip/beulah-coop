@@ -41,6 +41,90 @@ function log_audit($pdo, $user_id, $action, $details = '') {
 }
 
 /**
+ * Check whether a database table contains a column.
+ */
+function table_has_column(PDO $pdo, string $table, string $column): bool
+{
+    static $columnMap = [];
+    $cacheKey = strtolower($table . '.' . $column);
+
+    if (array_key_exists($cacheKey, $columnMap)) {
+        return $columnMap[$cacheKey];
+    }
+
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM `{$table}` LIKE ?");
+        $stmt->execute([$column]);
+        $columnMap[$cacheKey] = (bool)$stmt->fetch();
+    } catch (Throwable $e) {
+        $columnMap[$cacheKey] = false;
+    }
+
+    return $columnMap[$cacheKey];
+}
+
+/**
+ * Some deployments have a non-auto-increment primary key on transactions.
+ * Generate the next numeric id as a compatibility fallback.
+ */
+function next_numeric_table_id(PDO $pdo, string $table): int
+{
+    $stmt = $pdo->query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM `{$table}`");
+    $row = $stmt->fetch();
+    return max(1, (int)($row['next_id'] ?? 1));
+}
+
+/**
+ * Insert a transaction while tolerating older schemas.
+ */
+function create_transaction(
+    PDO $pdo,
+    int $userId,
+    string $transDate,
+    string $type,
+    float $amount,
+    string $description = '',
+    $createdBy = null
+): int {
+    $hasCreatedBy = table_has_column($pdo, 'transactions', 'created_by');
+
+    $columns = ['user_id', 'trans_date', 'type', 'amount', 'description'];
+    $values = [$userId, $transDate, $type, $amount, $description];
+
+    if ($hasCreatedBy) {
+        $columns[] = 'created_by';
+        $values[] = $createdBy;
+    }
+
+    $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+    $columnSql = implode(', ', $columns);
+
+    try {
+        $stmt = $pdo->prepare("INSERT INTO transactions ({$columnSql}) VALUES ({$placeholders})");
+        $stmt->execute($values);
+        return (int)$pdo->lastInsertId();
+    } catch (PDOException $e) {
+        $isDuplicatePrimaryZero = $e->getCode() === '23000'
+            && strpos($e->getMessage(), "Duplicate entry '0' for key 'PRIMARY'") !== false;
+
+        if (!$isDuplicatePrimaryZero) {
+            throw $e;
+        }
+
+        $nextId = next_numeric_table_id($pdo, 'transactions');
+        array_unshift($columns, 'id');
+        array_unshift($values, $nextId);
+        $columnSql = implode(', ', $columns);
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+
+        $stmt = $pdo->prepare("INSERT INTO transactions ({$columnSql}) VALUES ({$placeholders})");
+        $stmt->execute($values);
+
+        return $nextId;
+    }
+}
+
+/**
  * Calculate current savings and loan balance for a user
  */
 function get_user_balances($pdo, $user_id) {
