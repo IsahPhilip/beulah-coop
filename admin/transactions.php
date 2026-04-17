@@ -30,6 +30,15 @@ function respond_json($payload) {
     exit();
 }
 
+function safe_log_audit(PDO $pdo, $userId, string $action, string $details = ''): void
+{
+    try {
+        log_audit($pdo, $userId, $action, $details);
+    } catch (Throwable $e) {
+        error_log('Audit log failed: ' . $e->getMessage());
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $isAjax = isset($_POST['ajax']) && $_POST['ajax'] === '1';
     
@@ -53,28 +62,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
             }
 
-            $stmt = $pdo->prepare("
-                INSERT INTO transactions (user_id, trans_date, type, amount, description, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([$memberId, $date, $type, $amount, $description, $_SESSION['user_id'] ?? null]);
-            $newId = (int)$pdo->lastInsertId();
-            log_audit($pdo, $_SESSION['user_id'], 'transaction_created', "Added {$type} for member {$memberId}");
-            $success = 'Transaction added successfully.';
-            if ($isAjax) {
-                respond_json([
-                    'ok' => true,
-                    'message' => $success,
-                    'transaction' => [
-                        'id' => $newId,
-                        'trans_date' => $date,
-                        'member_label' => $member['name'] . ' (' . $member['coop_no'] . ')',
-                        'type_label' => str_replace('_', ' ', $type),
-                        'type' => $type,
-                        'amount' => $amount,
-                        'description' => $description
-                    ]
-                ]);
+            try {
+                $newId = create_transaction(
+                    $pdo,
+                    $memberId,
+                    $date,
+                    $type,
+                    $amount,
+                    $description,
+                    $_SESSION['user_id'] ?? null
+                );
+                safe_log_audit($pdo, $_SESSION['user_id'], 'transaction_created', "Added {$type} for member {$memberId}");
+                $success = 'Transaction added successfully.';
+                if ($isAjax) {
+                    respond_json([
+                        'ok' => true,
+                        'message' => $success,
+                        'transaction' => [
+                            'id' => $newId,
+                            'trans_date' => $date,
+                            'member_label' => $member['name'] . ' (' . $member['coop_no'] . ')',
+                            'type_label' => str_replace('_', ' ', $type),
+                            'type' => $type,
+                            'amount' => $amount,
+                            'description' => $description
+                        ]
+                    ]);
+                }
+            } catch (Throwable $e) {
+                error_log('Transaction insert failed: ' . $e->getMessage());
+                $error = env('APP_DEBUG', false)
+                    ? 'Failed to add transaction: ' . $e->getMessage()
+                    : 'Failed to add transaction. Please try again later.';
+                if ($isAjax) {
+                    http_response_code(500);
+                    respond_json(['ok' => false, 'error' => $error]);
+                }
             }
         }
     } elseif (isset($_POST['action'])) {
@@ -98,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     WHERE id = ?
                 ");
                 $stmt->execute([$date, $type, $amount, $description, $transId]);
-                log_audit($pdo, $_SESSION['user_id'], 'transaction_updated', "Updated transaction {$transId}");
+                safe_log_audit($pdo, $_SESSION['user_id'], 'transaction_updated', "Updated transaction {$transId}");
                 if ($isAjax) respond_json(['ok' => true, 'message' => 'Transaction updated successfully.']);
             }
         } elseif ($action === 'delete') {
@@ -108,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $stmt = $pdo->prepare("DELETE FROM transactions WHERE id = ?");
                 $stmt->execute([$transId]);
-                log_audit($pdo, $_SESSION['user_id'], 'transaction_deleted', "Deleted transaction {$transId}");
+                safe_log_audit($pdo, $_SESSION['user_id'], 'transaction_deleted', "Deleted transaction {$transId}");
                 if ($isAjax) respond_json(['ok' => true, 'message' => 'Transaction deleted successfully.']);
             }
         }
@@ -347,17 +370,44 @@ function showTransactionAlert(message, type) {
 }
 
 async function postJson(data) {
-    const res = await fetch('', {
-        method: 'POST',
-        body: data,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-        throw new Error('Session expired or unexpected response. Please refresh and log in again.');
+    try {
+        console.log('Starting AJAX request...');
+        const res = await fetch('', {
+            method: 'POST',
+            body: data,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        console.log('Response received:', res);
+        
+        const contentType = res.headers.get('content-type') || '';
+        console.log('Content-Type:', contentType);
+        
+        if (!contentType.includes('application/json')) {
+            const text = await res.text();
+            console.error('Non-JSON response:', text);
+            console.error('Status:', res.status);
+            console.error('Status Text:', res.statusText);
+            
+            if (res.status === 401) {
+                throw new Error('Authentication required. Please log in again.');
+            } else if (res.status === 403) {
+                throw new Error('Access denied. Admins only.');
+            } else if (res.status === 500) {
+                throw new Error('Server error. Please try again later.');
+            } else {
+                throw new Error('Session expired or unexpected response. Please refresh and log in again.');
+            }
+        }
+        
+        const json = await res.json();
+        console.log('JSON response:', json);
+        return { res, json };
+    } catch (err) {
+        console.error('Fetch error:', err);
+        throw err instanceof Error
+            ? err
+            : new Error('Unexpected response. Please refresh and try again.');
     }
-    const json = await res.json();
-    return { res, json };
 }
 
 document.getElementById('addTransactionForm').addEventListener('submit', async function(e) {
