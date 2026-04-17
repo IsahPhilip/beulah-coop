@@ -2,10 +2,16 @@
 // admin/members.php - Member Management with DataTables
 require_once '../includes/auth.php';
 if ($_SESSION['role'] === 'member') {
+    if (is_ajax_request()) {
+        json_exit(['ok' => false, 'error' => 'Access denied. Admins only.'], 403);
+    }
     header("Location: ../member/dashboard.php");
     exit();
 }
 if ($_SESSION['role'] !== 'admin') {
+    if (is_ajax_request()) {
+        json_exit(['ok' => false, 'error' => 'Access denied. Admins only.'], 403);
+    }
     header("Location: ../login.php");
     exit();
 }
@@ -361,6 +367,20 @@ function showMemberAlert(message, type) {
     el.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
 }
 
+async function postJson(data) {
+    const res = await fetch('', {
+        method: 'POST',
+        body: data,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+        throw new Error('Session expired or unexpected response. Please refresh and log in again.');
+    }
+    const json = await res.json();
+    return { res, json };
+}
+
 document.getElementById('addMemberForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -368,8 +388,13 @@ document.getElementById('addMemberForm').addEventListener('submit', async functi
     data.append('action', 'add');
     data.append('ajax', '1');
 
-    const res = await fetch('', { method: 'POST', body: data });
-    const json = await res.json();
+    let json;
+    try {
+        ({ json } = await postJson(data));
+    } catch (err) {
+        showMemberAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
+        return;
+    }
     if (!json.ok) {
         showMemberAlert(json.error || 'Failed to add member.', 'danger');
         return;
@@ -430,8 +455,13 @@ document.getElementById('saveMemberChanges').addEventListener('click', async fun
     data.append('email', document.getElementById('editEmail').value.trim());
     data.append('phone', document.getElementById('editPhone').value.trim());
 
-    const res = await fetch('', { method: 'POST', body: data });
-    const json = await res.json();
+    let json;
+    try {
+        ({ json } = await postJson(data));
+    } catch (err) {
+        showMemberAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
+        return;
+    }
     if (!json.ok) {
         showMemberAlert(json.error || 'Failed to update member.', 'danger');
         return;
@@ -467,8 +497,13 @@ document.getElementById('membersTable').addEventListener('click', async function
     data.append('ajax', '1');
     data.append('id', row.getAttribute('data-id'));
 
-    const res = await fetch('', { method: 'POST', body: data });
-    const json = await res.json();
+    let json;
+    try {
+        ({ json } = await postJson(data));
+    } catch (err) {
+        showMemberAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
+        return;
+    }
     if (!json.ok) {
         showMemberAlert(json.error || 'Failed to delete member.', 'danger');
         return;
