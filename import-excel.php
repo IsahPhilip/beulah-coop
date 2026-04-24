@@ -242,7 +242,37 @@ for ($i = 1; $i <= 55; $i++) {
 
     $userId = $user['id'];
 
+    // Identify balance columns by looking for category headers in row 6 and type headers in row 7
+    // Structure: Row 6 = SAVINGS | LOANS | LOANS INTEREST
+    //           Row 7 = DR | CR | BALANCE | DR | CR | BALANCE | DR | CR | BALANCE
+    $categoryRow = 6;
+    $typeRow = 7;
+    $savingsBalCol = null;
+    $loanBalCol = null;
+    $interestBalCol = null;
+    
+    // Find the balance column for each category
+    $highestCol = Coordinate::columnIndexFromString($sheet->getHighestColumn());
+    for ($col = 1; $col <= $highestCol; $col++) {
+        $colLetter = Coordinate::stringFromColumnIndex($col);
+        $category = strtoupper(trim((string)$sheet->getCell($colLetter . $categoryRow)->getValue()));
+        $type = strtoupper(trim((string)$sheet->getCell($colLetter . $typeRow)->getValue()));
+        
+        // Match category + type to identify balance columns
+        if (strpos($category, 'SAVINGS') !== false && $type === 'BALANCE') {
+            $savingsBalCol = $colLetter;
+        } elseif (strpos($category, 'LOAN') !== false && $type === 'BALANCE' && strpos($category, 'INTEREST') === false) {
+            $loanBalCol = $colLetter;
+        } elseif (strpos($category, 'INTEREST') !== false && $type === 'BALANCE') {
+            $interestBalCol = $colLetter;
+        }
+    }
+
     // Read transactions starting from row 8
+    $prevSavingsBal = 0;
+    $prevLoanBal = 0;
+    $prevInterestBal = 0;
+
     for ($row = 8; $row <= 100; $row++) {
         $dateVal = $sheet->getCell("A$row")->getValue();
         if (empty($dateVal)) continue;
@@ -256,29 +286,49 @@ for ($i = 1; $i <= 55; $i++) {
 
         if (!$transDate) continue;
 
-        // Savings Credit (Column C)
-        $savingsCr = parse_amount(get_cell_value_safe($sheet, "C$row"));
-        if (is_numeric($savingsCr) && $savingsCr > 0) {
-            insertTransaction($pdo, $userId, $transDate, 'savings_credit', $savingsCr, "Savings Deposit", $transCount);
+        // Get current balance values
+        $currSavingsBal = parse_amount($savingsBalCol ? get_cell_value_safe($sheet, "$savingsBalCol$row") : 0);
+        $currLoanBal = parse_amount($loanBalCol ? get_cell_value_safe($sheet, "$loanBalCol$row") : 0);
+        $currInterestBal = parse_amount($interestBalCol ? get_cell_value_safe($sheet, "$interestBalCol$row") : 0);
+
+        // Ensure values are numeric and set to 0 if invalid
+        $currSavingsBal = is_numeric($currSavingsBal) ? $currSavingsBal : 0;
+        $currLoanBal = is_numeric($currLoanBal) ? $currLoanBal : 0;
+        $currInterestBal = is_numeric($currInterestBal) ? $currInterestBal : 0;
+
+        // Calculate balance changes using DR/CR logic
+        $savingsChange = $currSavingsBal - $prevSavingsBal;
+        $loanChange = $currLoanBal - $prevLoanBal;
+        $interestChange = $currInterestBal - $prevInterestBal;
+
+        // Insert transactions based on balance changes
+        // Savings: positive change = credit (deposit), negative = debit (withdrawal)
+        if (abs($savingsChange) > 0.01) { // Threshold to avoid floating point errors
+            if ($savingsChange > 0) {
+                insertTransaction($pdo, $userId, $transDate, 'savings_credit', abs($savingsChange), "Savings Deposit", $transCount);
+            } else {
+                insertTransaction($pdo, $userId, $transDate, 'savings_debit', abs($savingsChange), "Savings Withdrawal", $transCount);
+            }
         }
 
-        // Loan Disbursed (Column E, DR)
-        $loanDr = parse_amount(get_cell_value_safe($sheet, "E$row"));
-        if (is_numeric($loanDr) && $loanDr > 0) {
-            insertTransaction($pdo, $userId, $transDate, 'loan_disbursed', $loanDr, "Loan Disbursed", $transCount);
+        // Loan: positive change = disbursed (new loan), negative = repayment
+        if (abs($loanChange) > 0.01) {
+            if ($loanChange > 0) {
+                insertTransaction($pdo, $userId, $transDate, 'loan_disbursed', abs($loanChange), "Loan Disbursed", $transCount);
+            } else {
+                insertTransaction($pdo, $userId, $transDate, 'loan_repayment', abs($loanChange), "Loan Repayment", $transCount);
+            }
         }
 
-        // Loan Repayment (Column F, CR)
-        $loanCr = parse_amount(get_cell_value_safe($sheet, "F$row"));
-        if (is_numeric($loanCr) && $loanCr > 0) {
-            insertTransaction($pdo, $userId, $transDate, 'loan_repayment', $loanCr, "Loan Repayment", $transCount);
+        // Interest: typically only increases (charged to member)
+        if (abs($interestChange) > 0.01 && $interestChange > 0) {
+            insertTransaction($pdo, $userId, $transDate, 'interest_charged', abs($interestChange), "Loan Interest Charged", $transCount);
         }
 
-        // Interest Charged (Column H, DR)
-        $interest = parse_amount(get_cell_value_safe($sheet, "H$row"));
-        if (is_numeric($interest) && $interest > 0) {
-            insertTransaction($pdo, $userId, $transDate, 'interest_charged', $interest, "Loan Interest", $transCount);
-        }
+        // Update previous balances for next iteration
+        $prevSavingsBal = $currSavingsBal;
+        $prevLoanBal = $currLoanBal;
+        $prevInterestBal = $currInterestBal;
     }
 }
 
