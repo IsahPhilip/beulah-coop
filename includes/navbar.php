@@ -26,6 +26,7 @@
             <a class="dash-nav-link<?= $isActive(['import.php', 'import-excel.php']) ?>" href="<?= $basePath ?>/admin/import.php"><i class="bi bi-upload"></i> Import Excel</a>
         <?php elseif ($role === 'member'): ?>
             <a class="dash-nav-link<?= $isActive(['dashboard.php']) ?>" href="<?= $basePath ?>/member/dashboard.php"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <a class="dash-nav-link<?= $isActive(['my-loans.php']) ?>" href="<?= $basePath ?>/member/my-loans.php"><i class="bi bi-cash-coin"></i> My Loans</a>
             <a class="dash-nav-link<?= $isActive(['profile.php']) ?>" href="<?= $basePath ?>/member/profile.php"><i class="bi bi-person-circle"></i> My Profile</a>
             <a class="dash-nav-link<?= $isActive(['notifications.php']) ?>" href="<?= $basePath ?>/notifications.php"><i class="bi bi-bell"></i> Notifications</a>
         <?php endif; ?>
