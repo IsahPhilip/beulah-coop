@@ -127,6 +127,23 @@ function delete_members_not_in_list($pdo, $coopNos) {
     $stmt->execute($params);
 }
 
+// Helper function - DEFINED EARLY for use in import loop
+function insertTransaction($pdo, $userId, $date, $type, $amount, $desc, &$counter) {
+    if (!$date || $amount <= 0) return;
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO transactions (user_id, trans_date, type, amount, description, created_by)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$userId, $date, $type, $amount, $desc, $_SESSION['user_id'] ?? null]);
+        $counter++;
+        return true;
+    } catch (Exception $e) {
+        error_log("Transaction insert failed for user $userId: " . $e->getMessage());
+        return false;
+    }
+}
+
 // ======================
 // STEP 1: Import Members from SUMMARY sheet
 // ======================
@@ -215,6 +232,8 @@ if (!empty($generatedPasswords)) {
 // STEP 2: Import Transactions from individual sheets
 // ======================
 $transCount = 0;
+$sheetsProcessed = 0;
+$sheetsSkipped = [];
 
 for ($i = 1; $i <= 55; $i++) {
     $sheetNames = ["NO $i", "No $i", "NO$i"];
@@ -225,7 +244,12 @@ for ($i = 1; $i <= 55; $i++) {
         if ($sheet) break;
     }
 
-    if (!$sheet) continue;
+    if (!$sheet) {
+        $sheetsSkipped[] = $i;
+        continue;
+    }
+
+    $sheetsProcessed++;
 
     // Get Coop No.
     $coopNo = normalize_coop_no(
@@ -233,12 +257,19 @@ for ($i = 1; $i <= 55; $i++) {
         ?: $sheet->getCell("C3")->getValue()
         ?: $sheet->getCell("B3")->getValue()
     );
-    if (empty($coopNo) || !isset($members[$coopNo])) continue;
+    
+    if (empty($coopNo) || !isset($members[$coopNo])) {
+        echo "<p class='text-muted'>⚠ Sheet $i: Coop no not found or not in member list ($coopNo)</p>";
+        continue;
+    }
 
     $stmt = $pdo->prepare("SELECT id FROM users WHERE coop_no = ?");
     $stmt->execute([$coopNo]);
     $user = $stmt->fetch();
-    if (!$user) continue;
+    if (!$user) {
+        echo "<p class='text-muted'>⚠ Sheet $i: User not found for coop $coopNo</p>";
+        continue;
+    }
 
     $userId = $user['id'];
 
@@ -251,27 +282,49 @@ for ($i = 1; $i <= 55; $i++) {
     $loanBalCol = null;
     $interestBalCol = null;
     
-    // Find the balance column for each category
+    // Find the balance column for each category by locating "BALANCE" cells in the type row
+    // then scanning left on the category row to determine which category header applies.
     $highestCol = Coordinate::columnIndexFromString($sheet->getHighestColumn());
     for ($col = 1; $col <= $highestCol; $col++) {
         $colLetter = Coordinate::stringFromColumnIndex($col);
-        $category = strtoupper(trim((string)$sheet->getCell($colLetter . $categoryRow)->getValue()));
         $type = strtoupper(trim((string)$sheet->getCell($colLetter . $typeRow)->getValue()));
-        
-        // Match category + type to identify balance columns
-        if (strpos($category, 'SAVINGS') !== false && $type === 'BALANCE') {
-            $savingsBalCol = $colLetter;
-        } elseif (strpos($category, 'LOAN') !== false && $type === 'BALANCE' && strpos($category, 'INTEREST') === false) {
-            $loanBalCol = $colLetter;
-        } elseif (strpos($category, 'INTEREST') !== false && $type === 'BALANCE') {
-            $interestBalCol = $colLetter;
+        if ($type !== 'BALANCE') continue;
+
+        // Scan left to find the nearest non-empty category header in categoryRow
+        $category = '';
+        for ($c2 = $col; $c2 >= 1; $c2--) {
+            $catLetter = Coordinate::stringFromColumnIndex($c2);
+            $candidate = trim((string)$sheet->getCell($catLetter . $categoryRow)->getValue());
+            if ($candidate !== '' && $candidate !== null) {
+                $category = strtoupper($candidate);
+                break;
+            }
         }
+
+        if ($category === '') continue;
+
+        if (strpos($category, 'SAVINGS') !== false) {
+            $savingsBalCol = $colLetter;
+        } elseif (strpos($category, 'INTEREST') !== false) {
+            $interestBalCol = $colLetter;
+        } elseif (strpos($category, 'LOAN') !== false) {
+            // ensure not to pick LOAN INTEREST as loan principal
+            if (strpos($category, 'INTEREST') === false) {
+                $loanBalCol = $colLetter;
+            }
+        }
+    }
+    
+    if (!$savingsBalCol && !$loanBalCol && !$interestBalCol) {
+        echo "<p class='text-warning'>⚠ Sheet $i ($coopNo): No balance columns found in rows 6-7. Skipping.</p>";
+        continue;
     }
 
     // Read transactions starting from row 8
     $prevSavingsBal = 0;
     $prevLoanBal = 0;
     $prevInterestBal = 0;
+    $transForSheet = 0;
 
     for ($row = 8; $row <= 100; $row++) {
         $dateVal = $sheet->getCell("A$row")->getValue();
@@ -301,28 +354,33 @@ for ($i = 1; $i <= 55; $i++) {
         $loanChange = $currLoanBal - $prevLoanBal;
         $interestChange = $currInterestBal - $prevInterestBal;
 
-        // Insert transactions based on balance changes
+        // Insert transactions based on balance changes (removed threshold - insert any change)
         // Savings: positive change = credit (deposit), negative = debit (withdrawal)
-        if (abs($savingsChange) > 0.01) { // Threshold to avoid floating point errors
+        if ($savingsChange != 0) {
             if ($savingsChange > 0) {
                 insertTransaction($pdo, $userId, $transDate, 'savings_credit', abs($savingsChange), "Savings Deposit", $transCount);
+                $transForSheet++;
             } else {
                 insertTransaction($pdo, $userId, $transDate, 'savings_debit', abs($savingsChange), "Savings Withdrawal", $transCount);
+                $transForSheet++;
             }
         }
 
         // Loan: positive change = disbursed (new loan), negative = repayment
-        if (abs($loanChange) > 0.01) {
+        if ($loanChange != 0) {
             if ($loanChange > 0) {
                 insertTransaction($pdo, $userId, $transDate, 'loan_disbursed', abs($loanChange), "Loan Disbursed", $transCount);
+                $transForSheet++;
             } else {
                 insertTransaction($pdo, $userId, $transDate, 'loan_repayment', abs($loanChange), "Loan Repayment", $transCount);
+                $transForSheet++;
             }
         }
 
         // Interest: typically only increases (charged to member)
-        if (abs($interestChange) > 0.01 && $interestChange > 0) {
+        if ($interestChange > 0) {
             insertTransaction($pdo, $userId, $transDate, 'interest_charged', abs($interestChange), "Loan Interest Charged", $transCount);
+            $transForSheet++;
         }
 
         // Update previous balances for next iteration
@@ -330,25 +388,23 @@ for ($i = 1; $i <= 55; $i++) {
         $prevLoanBal = $currLoanBal;
         $prevInterestBal = $currInterestBal;
     }
+    
+    if ($transForSheet > 0) {
+        echo "<p class='text-muted'>✓ Sheet $i ($coopNo): $transForSheet transactions</p>";
+    }
 }
 
 echo '<div class="alert alert-success mb-3"><strong>Import completed successfully!</strong></div>';
 echo '<p class="text-muted">Members: ' . $imported . ' | Transactions processed: ' . $transCount . '</p>';
+echo '<p class="text-muted">Sheets processed: ' . $sheetsProcessed . ' | Sheets with data: ' . (count(array_diff(range(1, 55), $sheetsSkipped))) . '</p>';
+
+if (!empty($sheetsSkipped) && count($sheetsSkipped) < 20) {
+    echo '<p class="text-muted small">Sheets not found: ' . implode(', ', $sheetsSkipped) . '</p>';
+}
 
 log_audit($pdo, $_SESSION['user_id'], 'excel_import', "Imported $imported members and $transCount transactions");
 
 echo '<a href="admin/index.php" class="btn btn-primary mt-2">Go to Admin Dashboard</a>';
-
-// Helper function
-function insertTransaction($pdo, $userId, $date, $type, $amount, $desc, &$counter) {
-    if (!$date || $amount <= 0) return;
-    $stmt = $pdo->prepare("
-        INSERT INTO transactions (user_id, trans_date, type, amount, description, created_by)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ");
-    $stmt->execute([$userId, $date, $type, $amount, $desc, $_SESSION['user_id'] ?? null]);
-    $counter++;
-}
 ?>
         </div>
     </div>
