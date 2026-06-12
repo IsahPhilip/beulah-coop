@@ -230,8 +230,9 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
     <!-- Loans Table -->
     <div class="dash-panel dash-panel-table">
         <div class="dash-panel-title">Loan Applications</div>
-        <table id="loansTable" class="table dash-table-grid">
-            <thead>
+        <div class="table-responsive">
+            <table id="loansTable" class="table table-hover dash-table-grid">
+                <thead>
                 <tr>
                     <th>Date</th>
                     <th>Member</th>
@@ -270,7 +271,8 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                 </tr>
             <?php endforeach; ?>
             </tbody>
-        </table>
+            </table>
+        </div>
     </div>
 </div>
 

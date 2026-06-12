@@ -120,7 +120,7 @@ $useDashboardLayout = true;
             <div class="dash-panel-title">
                 <i class="bi bi-list-ul me-2"></i>Loan Applications
             </div>
-            <div class="dash-table">
+            <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
                         <tr>
@@ -206,8 +206,8 @@ $useDashboardLayout = true;
                         </div>
                     </div>
 
-                    <div class="dash-table">
-                        <table class="table table-sm">
+                    <div class="table-responsive dash-table">
+                        <table class="table table-hover table-sm">
                             <thead>
                                 <tr>
                                     <th>#</th>

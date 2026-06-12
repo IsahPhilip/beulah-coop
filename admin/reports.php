@@ -169,16 +169,17 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
     <!-- Top Savers Table -->
     <div class="dash-panel dash-panel-table">
         <div class="dash-panel-title">Top 10 Members by Savings</div>
-        <table id="topSaversTable" class="table dash-table-grid">
-            <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th>Member</th>
-                    <th>Coop No.</th>
-                    <th>Total Savings</th>
-                </tr>
-            </thead>
-            <tbody>
+        <div class="table-responsive">
+            <table id="topSaversTable" class="table table-hover dash-table-grid">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Member</th>
+                        <th>Coop No.</th>
+                        <th>Total Savings</th>
+                    </tr>
+                </thead>
+                <tbody>
                 <?php $rank = 0; foreach ($topSavers as $saver): $rank++; ?>
                     <tr>
                         <td><span class="badge bg-<?= $rank <= 3 ? 'warning' : 'secondary' ?>">#<?= $rank ?></span></td>

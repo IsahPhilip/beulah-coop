@@ -501,7 +501,7 @@ $useDashboardLayout = true;
                     <?php if (!empty($user_photo) && file_exists(__DIR__ . '/../' . $user_photo)): ?>
                         <img src="../<?= htmlspecialchars($user_photo) ?>" alt="Profile Photo" class="profile-photo-preview">
                     <?php else: ?>
-                        <div class="dash-avatar mx-auto" style="width: 120px; height: 120px; font-size: 48px; border: 4px solid var(--dash-primary);">
+                        <div class="dash-avatar mx-auto" style="width: 120px; height: 120px; font-size: 48px; border: 4px solid var(--primary);">
                             <?= strtoupper(substr($user_name, 0, 1)) ?>
                         </div>
                     <?php endif; ?>

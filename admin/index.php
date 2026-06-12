@@ -62,6 +62,25 @@ for ($i = 0; $i < 12; $i++) {
 
 // Overdue loans (simple example)
 $overdue = $pdo->query("SELECT COUNT(*) as count FROM loans WHERE status = 'active' AND due_date < CURDATE()")->fetch()['count'];
+
+$recentStmt = $pdo->prepare("SELECT t.*, u.name, u.coop_no FROM transactions t JOIN users u ON t.user_id = u.id ORDER BY t.trans_date DESC LIMIT 8");
+$recentStmt->execute();
+$recentTransactions = $recentStmt->fetchAll();
+
+function transactionBadgeClass($type) {
+    switch ($type) {
+        case 'savings_credit':
+            return 'success';
+        case 'loan_disbursed':
+            return 'primary';
+        case 'loan_repayment':
+            return 'info';
+        case 'interest_charged':
+            return 'warning';
+        default:
+            return 'secondary';
+    }
+}
 ?>
 <?php
 $pageTitle = 'Admin Dashboard - Beulah Coop';
@@ -105,6 +124,34 @@ $useDashboardLayout = true;
         <div class="dash-panel">
             <div class="dash-panel-title">Portfolio Mix</div>
             <canvas id="portfolioChart"></canvas>
+        </div>
+    </div>
+
+    <div class="dash-panel dash-panel-table">
+        <div class="dash-panel-title">Recent Transactions</div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Member</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($recentTransactions as $tx): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($tx['trans_date']) ?></td>
+                            <td><?= htmlspecialchars($tx['name']) ?> <small class="text-muted">(<?= htmlspecialchars($tx['coop_no']) ?>)</small></td>
+                            <td><span class="badge bg-<?= transactionBadgeClass($tx['type']) ?>"><?= ucwords(str_replace('_', ' ', $tx['type'])) ?></span></td>
+                            <td><?= format_money($tx['amount']) ?></td>
+                            <td><?= htmlspecialchars($tx['description'] ?? '-') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

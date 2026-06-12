@@ -227,7 +227,8 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
 
     <div class="dash-panel dash-panel-table">
         <div class="dash-panel-title">Members</div>
-        <table id="membersTable" class="table dash-table-grid">
+        <div class="table-responsive">
+            <table id="membersTable" class="table table-hover dash-table-grid">
             <thead>
                 <tr>
                     <th>Coop No.</th>
@@ -261,6 +262,7 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
             <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 

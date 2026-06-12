@@ -114,7 +114,7 @@ $useDashboardLayout = true;
     </div>
 
     <!-- Notifications List -->
-    <div class="dash-panel">
+    <div class="dash-panel dash-panel-table">
         <div class="dash-panel-title">Your Notifications</div>
         <div class="p-3">
             <?php if (empty($notifications)): ?>

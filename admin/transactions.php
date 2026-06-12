@@ -142,6 +142,13 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($user_filter ? [$user_filter] : []);
 $trans = $stmt->fetchAll();
 
+$statsQuery = "SELECT COUNT(*) as count, SUM(amount) as total FROM transactions" . ($user_filter ? " WHERE user_id = ?" : "");
+$statsStmt = $pdo->prepare($statsQuery);
+$statsStmt->execute($user_filter ? [$user_filter] : []);
+$transStats = $statsStmt->fetch();
+$totalTransactions = (int)($transStats['count'] ?? 0);
+$totalTransactionAmount = (float)($transStats['total'] ?? 0);
+
 $membersStmt = $pdo->query("SELECT id, coop_no, name FROM users WHERE role = 'member' ORDER BY coop_no");
 $membersList = $membersStmt->fetchAll();
 ?>
@@ -160,6 +167,25 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
             <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addTransactionModal">Add Transaction</button>
         </div>
     </div>
+    <div class="dash-cards">
+        <div class="dash-card">
+            <div class="dash-card-label">Total Transactions</div>
+            <div class="dash-card-value"><?= $totalTransactions ?></div>
+            <div class="dash-card-sub">Showing last records</div>
+        </div>
+        <div class="dash-card">
+            <div class="dash-card-label">Total Amount</div>
+            <div class="dash-card-value text-primary"><?= format_money($totalTransactionAmount) ?></div>
+            <div class="dash-card-sub">Includes all transaction types</div>
+        </div>
+        <?php if ($user_filter): ?>
+            <div class="dash-card">
+                <div class="dash-card-label">Member Filter</div>
+                <div class="dash-card-value">Active</div>
+                <div class="dash-card-sub">Filtered by selected member</div>
+            </div>
+        <?php endif; ?>
+    </div>
     <div id="transactionAlerts"></div>
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
@@ -168,7 +194,7 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
     <?php endif; ?>
     <div class="dash-panel dash-panel-table">
         <div class="dash-panel-title">Transactions</div>
-        <div class="dash-filters">
+        <div class="dash-filters d-flex flex-wrap align-items-end gap-3 mb-3">
             <div class="dash-filter-group">
                 <label for="dateFrom">From</label>
                 <input type="date" id="dateFrom" class="form-control form-control-sm">
@@ -181,7 +207,8 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                 <i class="bi bi-x-circle me-1"></i>Clear
             </button>
         </div>
-        <table id="transactionsTable" class="table dash-table-grid">
+        <div class="table-responsive">
+            <table id="transactionsTable" class="table table-hover dash-table-grid">
             <thead>
                 <tr>
                     <th>Date</th>

@@ -66,8 +66,8 @@ $useDashboardLayout = true;
         </div>
         <div class="dash-panel">
             <div class="dash-panel-title">Recent Transactions</div>
-            <div class="dash-table">
-                <table class="table table-sm">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm">
                     <thead><tr><th>Date</th><th>Type</th><th>Amount</th></tr></thead>
                     <tbody>
                     <?php foreach ($transactions as $t): ?>

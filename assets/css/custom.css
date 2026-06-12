@@ -388,11 +388,104 @@ a {
     text-align: center;
 }
 
+.dash-nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.dash-nav-group-title {
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.dash-support-card {
+    margin-top: 1.5rem;
+    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.dash-support-card strong {
+    color: var(--gray-900);
+    font-size: 0.95rem;
+}
+
+.dash-support-card p {
+    color: var(--gray-600);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.dash-support-card .btn {
+    width: 100%;
+}
+
 .dash-main {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
     min-height: calc(100vh - 64px);
+}
+
+@media (max-width: 991.98px) {
+    .dash-shell {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+
+    .dash-sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        left: -100%;
+        top: 0;
+        width: 280px;
+        height: 100%;
+        z-index: 60;
+        margin: 0;
+        padding: 1.5rem 1rem;
+        transition: left 0.25s ease;
+        max-width: 280px;
+        overflow-y: auto;
+    }
+
+    body.nav-open .dash-sidebar {
+        left: 0;
+    }
+
+    .dash-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 50;
+    }
+
+    body.nav-open .dash-overlay {
+        display: block;
+    }
+
+    .dash-topbar {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .dash-hamburger {
+        display: inline-flex;
+    }
+
+    .dash-search input {
+        width: 100%;
+        max-width: 100%;
+    }
 }
 
 .dash-topbar {
@@ -643,6 +736,30 @@ a {
 
 .dash-panel-table {
     padding-top: 1rem;
+}
+
+.dash-table {
+    overflow-x: auto;
+}
+
+.dash-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.dash-filter-group label {
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    font-weight: 600;
+}
+
+.dash-panel .table {
+    margin-bottom: 0;
+}
+
+.dash-panel .table-hover tbody tr:hover {
+    background: rgba(97, 4, 95, 0.05);
 }
 
 .dash-split {
