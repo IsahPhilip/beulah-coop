@@ -465,6 +465,7 @@ $useDashboardLayout = true;
             <button type="button" class="btn-close" data-bs-toggle="alert"></button>
         </div>
     <?php endif; ?>
+    
     <?php if ($error_msg): ?>
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <i class="bi bi-exclamation-triangle me-2"></i><?= htmlspecialchars($error_msg) ?>
