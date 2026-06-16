@@ -1,16 +1,9 @@
 <?php
 // import-excel.php - Improved version with secure file upload
 require_once 'includes/auth.php';
-require_once 'vendor/autoload.php';
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use PhpOffice\PhpSpreadsheet\Calculation\Exception as CalcException;
 
-// Security: Only admin can access
-if (($_SESSION['role'] ?? '') !== 'admin') {
-    die("Access denied. Admin login required.");
-}
-
-echo '<!DOCTYPE html>
+function import_page_start() {
+    echo '<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -24,11 +17,51 @@ echo '<!DOCTYPE html>
     <div class="container py-4">
         <div class="dash-panel">
             <div class="dash-panel-title">Beulah Coop - Excel Import</div>';
-flush();
+}
+
+function import_page_end() {
+    echo '        </div>
+    </div>
+</body>
+</html>';
+}
+
+function import_fail($message, $statusCode = 400) {
+    http_response_code($statusCode);
+    echo '<div class="alert alert-danger"><strong>Import failed.</strong><br>' . htmlspecialchars($message) . '</div>';
+    echo '<a href="admin/import.php" class="btn btn-primary mt-2">Back to Import</a>';
+    import_page_end();
+    exit();
+}
+
+set_exception_handler(function($e) {
+    error_log('Excel import failed: ' . $e->getMessage());
+    import_fail($e->getMessage(), 500);
+});
+
+// Security: Only admin can access
+if (($_SESSION['role'] ?? '') !== 'admin') {
+    die("Access denied. Admin login required.");
+}
+
+import_page_start();
+
+$autoloadPath = __DIR__ . '/vendor/autoload.php';
+if (!file_exists($autoloadPath)) {
+    import_fail('PhpSpreadsheet is not installed on the server. Upload the vendor folder or run composer install on the server.', 500);
+}
+
+require_once $autoloadPath;
+
+if (!class_exists('\PhpOffice\PhpSpreadsheet\IOFactory')) {
+    import_fail('PhpSpreadsheet could not be loaded. Please reinstall Composer dependencies.', 500);
+}
 
 $uploadDir = 'uploads/';
 if (!is_dir($uploadDir)) {
-    mkdir($uploadDir, 0755, true);
+    if (!mkdir($uploadDir, 0755, true)) {
+        import_fail('Could not create the uploads directory. Please check folder permissions.', 500);
+    }
 }
 
 $allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream'];
@@ -41,29 +74,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['excel_file'])) {
     $file = $_FILES['excel_file'];
 
     if ($file['error'] !== UPLOAD_ERR_OK) {
-        die("Upload error: " . $file['error']);
+        import_fail("Upload error: " . $file['error']);
     }
 
-    if (!in_array($file['type'], $allowedTypes) && !str_ends_with(strtolower($file['name']), '.xlsx')) {
-        die("Invalid file type. Only .xlsx files are allowed.");
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($file['type'], $allowedTypes) && $extension !== 'xlsx') {
+        import_fail("Invalid file type. Only .xlsx files are allowed.");
     }
 
     if ($file['size'] > $maxSize) {
-        die("File is too large. Maximum size is 10MB.");
+        import_fail("File is too large. Maximum size is 10MB.");
     }
 
     $inputFileName = $uploadDir . '2025COOP_LEDGERS_' . time() . '.xlsx';
     if (!move_uploaded_file($file['tmp_name'], $inputFileName)) {
-        die("Failed to save uploaded file.");
+        import_fail("Failed to save uploaded file. Please check uploads folder permissions.");
     }
 
     echo '<div class="alert alert-success">File uploaded successfully.</div>';
 } else {
-    die("No file uploaded.");
+    import_fail("No file uploaded.");
 }
 
 if (!file_exists($inputFileName)) {
-    die("Excel file not found.");
+    import_fail("Excel file not found.");
 }
 
 // Load spreadsheet
@@ -80,13 +114,15 @@ function normalize_coop_no($value) {
 }
 
 function get_header_column($sheet, $rowIndex, $labels) {
-    $labels = array_map(fn($v) => strtoupper(trim($v)), $labels);
-    $highestCol = Coordinate::columnIndexFromString($sheet->getHighestColumn());
+    $labels = array_map(function($v) {
+        return strtoupper(trim($v));
+    }, $labels);
+    $highestCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestColumn());
     for ($col = 1; $col <= $highestCol; $col++) {
-        $val = (string)$sheet->getCell(Coordinate::stringFromColumnIndex($col) . $rowIndex)->getValue();
+        $val = (string)$sheet->getCell(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col) . $rowIndex)->getValue();
         $val = strtoupper(trim(preg_replace('/\s+/', ' ', $val)));
         if ($val !== '' && in_array($val, $labels, true)) {
-            return Coordinate::stringFromColumnIndex($col);
+            return \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
         }
     }
     return null;
@@ -95,9 +131,9 @@ function get_header_column($sheet, $rowIndex, $labels) {
 function get_cell_value_safe($sheet, $cellRef) {
     try {
         return $sheet->getCell($cellRef)->getCalculatedValue();
-    } catch (CalcException $e) {
+    } catch (\PhpOffice\PhpSpreadsheet\Calculation\Exception $e) {
         return $sheet->getCell($cellRef)->getValue();
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         return $sheet->getCell($cellRef)->getValue();
     }
 }
@@ -131,14 +167,10 @@ function delete_members_not_in_list($pdo, $coopNos) {
 function insertTransaction($pdo, $userId, $date, $type, $amount, $desc, &$counter) {
     if (!$date || $amount <= 0) return;
     try {
-        $stmt = $pdo->prepare("
-            INSERT INTO transactions (user_id, trans_date, type, amount, description, created_by)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([$userId, $date, $type, $amount, $desc, $_SESSION['user_id'] ?? null]);
+        create_transaction($pdo, (int)$userId, $date, $type, (float)$amount, $desc, $_SESSION['user_id'] ?? null);
         $counter++;
         return true;
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         error_log("Transaction insert failed for user $userId: " . $e->getMessage());
         return false;
     }
@@ -149,7 +181,7 @@ function insertTransaction($pdo, $userId, $date, $type, $amount, $desc, &$counte
 // ======================
 $summarySheet = $spreadsheet->getSheetByName('SUMMARY');
 if (!$summarySheet) {
-    die("SUMMARY sheet not found in the Excel file.");
+    import_fail("SUMMARY sheet not found in the Excel file.");
 }
 
 $members = [];
@@ -158,7 +190,7 @@ $nameCol = get_header_column($summarySheet, $headerRow, ['NAMES', 'NAME']);
 $coopCol = get_header_column($summarySheet, $headerRow, ['COOP NO', 'COOP NO.', 'COOP NUMBER', 'COOP#', 'COOP']);
 
 if (!$nameCol || !$coopCol) {
-    die("Could not detect NAME/COOP NO columns in SUMMARY sheet.");
+    import_fail("Could not detect NAME/COOP NO columns in SUMMARY sheet.");
 }
 
 $row = $headerRow + 1;
@@ -188,7 +220,7 @@ try {
     echo '<p class="text-muted">Cleared existing member transactions and removed members not in sheet.</p>';
 } catch (Exception $e) {
     $pdo->rollBack();
-    die("Failed to clear existing data: " . $e->getMessage());
+    import_fail("Failed to clear existing data: " . $e->getMessage(), 500);
 }
 
 // Insert/Update users
@@ -284,16 +316,16 @@ for ($i = 1; $i <= 55; $i++) {
     
     // Find the balance column for each category by locating "BALANCE" cells in the type row
     // then scanning left on the category row to determine which category header applies.
-    $highestCol = Coordinate::columnIndexFromString($sheet->getHighestColumn());
+    $highestCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestColumn());
     for ($col = 1; $col <= $highestCol; $col++) {
-        $colLetter = Coordinate::stringFromColumnIndex($col);
+        $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
         $type = strtoupper(trim((string)$sheet->getCell($colLetter . $typeRow)->getValue()));
         if ($type !== 'BALANCE') continue;
 
         // Scan left to find the nearest non-empty category header in categoryRow
         $category = '';
         for ($c2 = $col; $c2 >= 1; $c2--) {
-            $catLetter = Coordinate::stringFromColumnIndex($c2);
+            $catLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($c2);
             $candidate = trim((string)$sheet->getCell($catLetter . $categoryRow)->getValue());
             if ($candidate !== '' && $candidate !== null) {
                 $category = strtoupper($candidate);
@@ -405,8 +437,5 @@ if (!empty($sheetsSkipped) && count($sheetsSkipped) < 20) {
 log_audit($pdo, $_SESSION['user_id'], 'excel_import', "Imported $imported members and $transCount transactions");
 
 echo '<a href="admin/index.php" class="btn btn-primary mt-2">Go to Admin Dashboard</a>';
+import_page_end();
 ?>
-        </div>
-    </div>
-</body>
-</html>
