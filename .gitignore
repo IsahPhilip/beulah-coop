@@ -11,6 +11,10 @@ uploads/profiles/*
 uploads/*.xlsx
 uploads/*.xls
 
+# Excel temporary files
+~$*.xlsx
+~$*.xls
+
 # IDE and Editor files
 .vscode/
 .idea/

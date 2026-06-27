@@ -10,6 +10,10 @@ if ($_SESSION['role'] !== 'admin') {
     exit();
 }
 
+$pageTitle = 'Reports & Analytics - Beulah Coop';
+$useDashboardLayout = true;
+$extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">';
+
 // Date range filter
 $dateFrom = $_GET['date_from'] ?? date('Y-m-01');
 $dateTo = $_GET['date_to'] ?? date('Y-m-d');
@@ -86,9 +90,6 @@ $memberStatsStmt = $pdo->prepare($memberStatsQuery);
 $memberStatsStmt->execute([$dateFrom, $dateTo]);
 $memberStats = $memberStatsStmt->fetch();
 
-$pageTitle = 'Reports & Analytics - Beulah Coop';
-$useDashboardLayout = true;
-$extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">';
 ?>
 <?php include '../includes/header.php'; ?>
 <div class="dash-grid">

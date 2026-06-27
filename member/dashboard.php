@@ -62,6 +62,11 @@ $useDashboardLayout = true;
     <div class="dash-panels">
         <div class="dash-panel">
             <div class="dash-panel-title">Savings Growth Over Time</div>
+            <div class="mb-3">
+                <a href="transactions.php" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-list-ul me-1"></i>View All Transactions
+                </a>
+            </div>
             <canvas id="savingsChart"></canvas>
         </div>
         <div class="dash-panel">

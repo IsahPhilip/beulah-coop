@@ -31,14 +31,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$title, $content, $_SESSION['user_id'], $targetAudience, $priority, $expiresAt]);
             
             // Create notification for all users in target audience
+            $notificationUrl = ($targetAudience === 'member') ? '/member/announcements.php' : '/admin/announcements.php';
             $targetUsers = "SELECT id FROM users WHERE role = ?";
             if ($targetAudience === 'all') {
                 $targetUsers = "SELECT id FROM users WHERE id != ?";
                 $stmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type, action_url) SELECT id, ?, ?, 'announcement', ? FROM users WHERE id != ?");
-                $stmt->execute([$title, substr($content, 0, 200) . '...', '/admin/announcements.php', $_SESSION['user_id']]);
+                $stmt->execute([$title, substr($content, 0, 200) . '...', $notificationUrl, $_SESSION['user_id']]);
             } else {
                 $stmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type, action_url) SELECT id, ?, ?, 'announcement', ? FROM users WHERE role = ?");
-                $stmt->execute([$title, substr($content, 0, 200) . '...', '/admin/announcements.php', $targetAudience]);
+                $stmt->execute([$title, substr($content, 0, 200) . '...', $notificationUrl, $targetAudience]);
             }
             
             log_audit($pdo, $_SESSION['user_id'], 'announcement_created', "Created announcement: {$title}");

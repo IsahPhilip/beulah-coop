@@ -158,7 +158,7 @@ $useDashboardLayout = true;
                                     <button type="button" class="btn btn-sm btn-outline-primary" 
                                             data-bs-toggle="modal" 
                                             data-bs-target="#loanDetailsModal"
-                                            onclick="showLoanDetails(<?= json_encode($loan) ?>)">
+                                            onclick="showLoanDetails(<?= $loan['id'] ?>)">
                                         <i class="bi bi-eye"></i> Details
                                     </button>
                                 </td>
@@ -267,7 +267,15 @@ $useDashboardLayout = true;
 </div>
 
 <script>
-function showLoanDetails(loan) {
+const loansData = <?= json_encode($loans, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+
+function showLoanDetails(loanId) {
+    const loan = loansData.find(l => l.id == loanId);
+    if (!loan) {
+        document.getElementById('loanDetailsContent').innerHTML = '<div class="alert alert-danger">Loan not found.</div>';
+        return;
+    }
+    
     const content = document.getElementById('loanDetailsContent');
     const statusColors = {
         'pending': 'warning',

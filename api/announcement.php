@@ -16,7 +16,7 @@ $stmt = $pdo->prepare("
     SELECT a.*, u.name as creator_name 
     FROM announcements a 
     JOIN users u ON a.created_by = u.id 
-    WHERE a.id = ? AND a.is_active = 1
+    WHERE a.id = ?
 ");
 $stmt->execute([$id]);
 $announcement = $stmt->fetch();
