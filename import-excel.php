@@ -425,7 +425,6 @@ for ($i = 1; $i <= 55; $i++) {
         echo "<p class='text-muted'>✓ Sheet $i ($coopNo): $transForSheet transactions</p>";
     }
 }
-
 echo '<div class="alert alert-success mb-3"><strong>Import completed successfully!</strong></div>';
 echo '<p class="text-muted">Members: ' . $imported . ' | Transactions processed: ' . $transCount . '</p>';
 echo '<p class="text-muted">Sheets processed: ' . $sheetsProcessed . ' | Sheets with data: ' . (count(array_diff(range(1, 55), $sheetsSkipped))) . '</p>';
