@@ -84,9 +84,15 @@ if ($role === 'admin') {
                         </div>
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="border-radius: 12px; min-width: 180px;">
                             <li>
-                                <a class="dropdown-item py-2 px-3" href="<?= $basePath ?>/member/profile.php">
-                                    <i class="bi bi-person-circle me-2"></i>My Profile
-                                </a>
+                                <?php if ($role === 'admin'): ?>
+                                    <a class="dropdown-item py-2 px-3" href="<?= $basePath ?>/admin/index.php">
+                                        <i class="bi bi-person-circle me-2"></i>My Profile
+                                    </a>
+                                <?php else: ?>
+                                    <a class="dropdown-item py-2 px-3" href="<?= $basePath ?>/member/profile.php">
+                                        <i class="bi bi-person-circle me-2"></i>My Profile
+                                    </a>
+                                <?php endif; ?>
                             </li>
                             <?php if ($role === 'admin'): ?>
                                 <li>
