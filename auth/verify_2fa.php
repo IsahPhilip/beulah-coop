@@ -10,6 +10,8 @@ if (!isset($_SESSION['temp_user']) || !isset($_SESSION['2fa_code'])) {
 }
 
 $error = '';
+$debug_mode = isset($_GET['debug']) && $_GET['debug'] == '1';
+$show_debug_code = $debug_mode && isset($_SESSION['2fa_debug_code']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $entered_code = trim($_POST['code']);
@@ -66,6 +68,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="auth-right">
             <div class="auth-title">Two-Factor Authentication</div>
             <div class="auth-subtitle">Enter the 6-digit code sent to your email.</div>
+
+            <?php if ($show_debug_code): ?>
+                <div class="alert alert-warning">
+                    <i class="bi bi-bug me-2"></i><strong>Debug Mode</strong><br>
+                    Your verification code is: <strong class="fs-4"><?= htmlspecialchars($_SESSION['2fa_debug_code']) ?></strong><br>
+                    <small>Email sending is bypassed in debug mode.</small>
+                </div>
+            <?php endif; ?>
 
             <?php if ($error): ?>
                 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>

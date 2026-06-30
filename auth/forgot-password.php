@@ -51,39 +51,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Send email
                 try {
-                    require_once '../vendor/autoload.php';
-                    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+                    // If in debug mode, skip sending and show link directly
+                    if (env('APP_DEBUG', false)) {
+                        $success = 'Debug Mode: Email sending is bypassed. Use the link below to reset your password:<br><br>';
+                        $success .= '<a href="' . $reset_link . '" class="btn btn-primary">Reset Password</a>';
+                        $success .= '<br><br><small class="text-muted">In production, this link would be sent to ' . htmlspecialchars($user['email']) . '</small>';
+                        
+                        log_audit($pdo, $user['id'], 'password_reset_requested', 'Password reset link generated (debug mode, email not sent)');
+                    } else {
+                        require_once '../vendor/autoload.php';
+                        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
-                    $mail->isSMTP();
-                    $mail->Host = env('MAIL_HOST', 'smtp.gmail.com');
-                    $mail->SMTPAuth = true;
-                    $mail->Username = env('MAIL_USERNAME', '');
-                    $mail->Password = env('MAIL_PASSWORD', '');
-                    $mail->SMTPSecure = env('MAIL_ENCRYPTION', 'tls');
-                    $mail->Port = (int)env('MAIL_PORT', 587);
+                        $mail->isSMTP();
+                        $mail->Host = env('MAIL_HOST', 'smtp.gmail.com');
+                        $mail->SMTPAuth = true;
+                        $mail->Username = env('MAIL_USERNAME', '');
+                        $mail->Password = env('MAIL_PASSWORD', '');
+                        $mail->SMTPSecure = env('MAIL_ENCRYPTION', 'tls');
+                        $mail->Port = (int)env('MAIL_PORT', 587);
 
-                    $mail->setFrom(env('MAIL_FROM_ADDRESS', 'no-reply@beulahcoop.local'), env('MAIL_FROM_NAME', 'Beulah Coop'));
-                    $mail->addAddress($user['email']);
-                    $mail->isHTML(true);
-                    $mail->Subject = 'Password Reset Request - Beulah Coop';
-                    $mail->Body = "
-                        Dear {$user['name']},<br><br>
-                        You have requested to reset your password for your Beulah Coop account.<br><br>
-                        Click the link below to reset your password:<br>
-                        <a href='$reset_link' style='background: var(--primary); color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0;'>
-                            Reset Password
-                        </a><br><br>
-                        This link will expire in " . (env('PASSWORD_RESET_EXPIRY', 3600) / 60) . " minutes.<br><br>
-                        If you did not request this password reset, please ignore this email or contact support.<br><br>
-                        Thank you.<br>
-                        Beulah Coop Team
-                    ";
+                        $mail->setFrom(env('MAIL_FROM_ADDRESS', 'no-reply@beulahcoop.local'), env('MAIL_FROM_NAME', 'Beulah Coop'));
+                        $mail->addAddress($user['email']);
+                        $mail->isHTML(true);
+                        $mail->Subject = 'Password Reset Request - Beulah Coop';
+                        $mail->Body = "
+                            Dear {$user['name']},<br><br>
+                            You have requested to reset your password for your Beulah Coop account.<br><br>
+                            Click the link below to reset your password:<br>
+                            <a href='$reset_link' style='background: var(--primary); color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0;'>
+                                Reset Password
+                            </a><br><br>
+                            This link will expire in " . (env('PASSWORD_RESET_EXPIRY', 3600) / 60) . " minutes.<br><br>
+                            If you did not request this password reset, please ignore this email or contact support.<br><br>
+                            Thank you.<br>
+                            Beulah Coop Team
+                        ";
 
-                    $mail->send();
+                        $mail->send();
 
-                    log_audit($pdo, $user['id'], 'password_reset_requested', 'Password reset link sent via email');
-                    $success = 'Password reset instructions have been sent to your email address.';
-
+                        log_audit($pdo, $user['id'], 'password_reset_requested', 'Password reset link sent via email');
+                        $success = 'Password reset instructions have been sent to your email address.';
+                    }
                 } catch (Exception $e) {
                     if (env('APP_DEBUG', false)) {
                         $error = "Failed to send reset email: " . $e->getMessage() . "<br><br>Debug: Reset link would be: $reset_link";

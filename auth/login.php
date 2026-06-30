@@ -110,28 +110,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     // Send email using environment config
                     try {
-                        require_once '../vendor/autoload.php';
-                        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+                        // If in debug mode, show 2FA code directly instead of sending email
+                        if (env('APP_DEBUG', false)) {
+                            // Store 2FA code but show it in debug mode
+                            $_SESSION['2fa_debug_code'] = $code;
+                            log_audit($pdo, $user['id'], '2fa_initiated', '2FA code generated (debug mode, email not sent)');
+                            
+                            // Redirect with debug flag
+                            header("Location: verify_2fa.php?debug=1");
+                            exit();
+                        } else {
+                            require_once '../vendor/autoload.php';
+                            $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
-                        $mail->isSMTP();
-                        $mail->Host = env('MAIL_HOST', 'smtp.gmail.com');
-                        $mail->SMTPAuth = true;
-                        $mail->Username = env('MAIL_USERNAME', '');
-                        $mail->Password = env('MAIL_PASSWORD', '');
-                        $mail->SMTPSecure = env('MAIL_ENCRYPTION', 'tls');
-                        $mail->Port = (int)env('MAIL_PORT', 587);
+                            $mail->isSMTP();
+                            $mail->Host = env('MAIL_HOST', 'smtp.gmail.com');
+                            $mail->SMTPAuth = true;
+                            $mail->Username = env('MAIL_USERNAME', '');
+                            $mail->Password = env('MAIL_PASSWORD', '');
+                            $mail->SMTPSecure = env('MAIL_ENCRYPTION', 'tls');
+                            $mail->Port = (int)env('MAIL_PORT', 587);
 
-                        $mail->setFrom(env('MAIL_FROM_ADDRESS', 'no-reply@beulahcoop.local'), env('MAIL_FROM_NAME', 'Beulah Coop'));
-                        $mail->addAddress($user['email']);
-                        $mail->isHTML(true);
-                        $mail->Subject = 'Your Beulah Coop 2FA Code';
-                        $mail->Body = "Dear {$user['name']},<br><br>Your 6-digit verification code is: <b>$code</b><br><br>This code expires in " . env('2FA_CODE_EXPIRY', 600) / 60 . " minutes.<br><br>Thank you.";
+                            $mail->setFrom(env('MAIL_FROM_ADDRESS', 'no-reply@beulahcoop.local'), env('MAIL_FROM_NAME', 'Beulah Coop'));
+                            $mail->addAddress($user['email']);
+                            $mail->isHTML(true);
+                            $mail->Subject = 'Your Beulah Coop 2FA Code';
+                            $mail->Body = "Dear {$user['name']},<br><br>Your 6-digit verification code is: <b>$code</b><br><br>This code expires in " . env('2FA_CODE_EXPIRY', 600) / 60 . " minutes.<br><br>Thank you.";
 
-                        $mail->send();
+                            $mail->send();
 
-                        log_audit($pdo, $user['id'], '2fa_initiated', '2FA code sent to email');
-                        header("Location: verify_2fa.php");
-                        exit();
+                            log_audit($pdo, $user['id'], '2fa_initiated', '2FA code sent to email');
+                            header("Location: verify_2fa.php");
+                            exit();
+                        }
                     } catch (Exception $e) {
                         // If PHPMailer fails in debug mode, allow login without 2FA
                         if (env('APP_DEBUG', false)) {
