@@ -267,7 +267,7 @@ $transCount = 0;
 $sheetsProcessed = 0;
 $sheetsSkipped = [];
 
-for ($i = 1; $i <= 55; $i++) {
+for ($i = 1; $i <= 80; $i++) {
     $sheetNames = ["NO $i", "No $i", "NO$i"];
     $sheet = null;
 
@@ -283,16 +283,23 @@ for ($i = 1; $i <= 55; $i++) {
 
     $sheetsProcessed++;
 
-    // Get Coop No.
+    // Get Coop No. Some sheets have the coop number in D4 instead of D3.
     $coopNo = normalize_coop_no(
         $sheet->getCell("D3")->getValue()
         ?: $sheet->getCell("C3")->getValue()
+        ?: $sheet->getCell("D4")->getValue()
         ?: $sheet->getCell("B3")->getValue()
     );
-    
+
+    // If extracted value is not a known member, fall back to the derived coop number (BC01..BC80)
     if (empty($coopNo) || !isset($members[$coopNo])) {
-        echo "<p class='text-muted'>⚠ Sheet $i: Coop no not found or not in member list ($coopNo)</p>";
-        continue;
+        $derivedCoopNo = normalize_coop_no(sprintf('BC%02d', $i));
+        if (isset($members[$derivedCoopNo])) {
+            $coopNo = $derivedCoopNo;
+        } else {
+            echo "<p class='text-muted'>⚠ Sheet $i: Coop no not found or not in member list ($coopNo)</p>";
+            continue;
+        }
     }
 
     $stmt = $pdo->prepare("SELECT id FROM users WHERE coop_no = ?");
@@ -366,7 +373,18 @@ for ($i = 1; $i <= 55; $i++) {
         if (is_numeric($dateVal) && $dateVal > 40000) {
             $transDate = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($dateVal)->format('Y-m-d');
         } elseif (is_string($dateVal)) {
-            $transDate = date('Y-m-d', strtotime($dateVal));
+            $ts = strtotime($dateVal);
+            if ($ts !== false) {
+                $transDate = date('Y-m-d', $ts);
+            }
+        }
+
+        // Reject obviously invalid dates (e.g. "TOTAL" rows, template artifacts)
+        if ($transDate) {
+            $year = (int)substr($transDate, 0, 4);
+            if ($year < 2000 || $year > 2040) {
+                $transDate = null;
+            }
         }
 
         if (!$transDate) continue;
@@ -378,8 +396,10 @@ for ($i = 1; $i <= 55; $i++) {
 
         // Ensure values are numeric and set to 0 if invalid
         $currSavingsBal = is_numeric($currSavingsBal) ? $currSavingsBal : 0;
-        $currLoanBal = is_numeric($currLoanBal) ? $currLoanBal : 0;
-        $currInterestBal = is_numeric($currInterestBal) ? $currInterestBal : 0;
+        // Some sheets store loan/interest balances as negative numbers (CR convention).
+        // abs() normalises them so balance differences correctly identify disbursements vs repayments.
+        $currLoanBal = abs(is_numeric($currLoanBal) ? $currLoanBal : 0);
+        $currInterestBal = abs(is_numeric($currInterestBal) ? $currInterestBal : 0);
 
         // Calculate balance changes using DR/CR logic
         $savingsChange = $currSavingsBal - $prevSavingsBal;

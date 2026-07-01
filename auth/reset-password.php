@@ -13,6 +13,20 @@ session_start();
 require_once '../config/db.php';
 require_once '../includes/functions.php';
 
+// Ensure table exists (in case migration was not yet applied)
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `password_reset_tokens` (
+        `id`         INT AUTO_INCREMENT PRIMARY KEY,
+        `user_id`    INT NOT NULL,
+        `token`      VARCHAR(64) NOT NULL UNIQUE,
+        `otp_code`   VARCHAR(6)  NULL,
+        `expires_at` DATETIME NOT NULL,
+        `used_at`    DATETIME NULL,
+        `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (PDOException $e) { /* already exists */ }
+
 $error = '';
 $success = '';
 $token = $_GET['token'] ?? '';
