@@ -14,11 +14,13 @@ $user_id = $_SESSION['user_id'];
 
 // Get current balances
 $stmt = $pdo->prepare("
-    SELECT 
-        SUM(CASE WHEN type IN ('savings_credit') THEN amount ELSE 0 END) as total_savings,
-        SUM(CASE WHEN type = 'loan_disbursed' THEN amount ELSE 0 END) -
-        SUM(CASE WHEN type = 'loan_repayment' THEN amount ELSE 0 END) as outstanding_loan,
-        SUM(CASE WHEN type = 'interest_charged' THEN amount ELSE 0 END) as total_interest
+    SELECT
+        SUM(CASE WHEN type = 'savings_credit' THEN amount ELSE 0 END) -
+        SUM(CASE WHEN type = 'savings_debit'  THEN amount ELSE 0 END) as total_savings,
+        SUM(CASE WHEN type = 'loan_disbursed'  THEN amount ELSE 0 END) -
+        SUM(CASE WHEN type = 'loan_repayment'  THEN amount ELSE 0 END) as outstanding_loan,
+        SUM(CASE WHEN type = 'interest_charged' THEN amount ELSE 0 END) -
+        SUM(CASE WHEN type = 'interest_paid'    THEN amount ELSE 0 END) as total_interest
     FROM transactions WHERE user_id = ?
 ");
 $stmt->execute([$user_id]);

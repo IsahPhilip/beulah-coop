@@ -176,6 +176,15 @@ function insertTransaction($pdo, $userId, $date, $type, $amount, $desc, &$counte
     }
 }
 
+// Ensure the transactions.type ENUM recognises all types used by this import.
+try {
+    $pdo->exec("ALTER TABLE `transactions` MODIFY COLUMN `type`
+        ENUM('savings_credit','savings_debit','loan_disbursed','loan_repayment','interest_charged','interest_paid')
+        NOT NULL");
+} catch (PDOException $e) {
+    error_log('ENUM alter skipped: ' . $e->getMessage());
+}
+
 // ======================
 // STEP 1: Import Members from SUMMARY sheet
 // ======================
@@ -389,56 +398,55 @@ for ($i = 1; $i <= 80; $i++) {
 
         if (!$transDate) continue;
 
-        // Get current balance values
-        $currSavingsBal = parse_amount($savingsBalCol ? get_cell_value_safe($sheet, "$savingsBalCol$row") : 0);
-        $currLoanBal = parse_amount($loanBalCol ? get_cell_value_safe($sheet, "$loanBalCol$row") : 0);
-        $currInterestBal = parse_amount($interestBalCol ? get_cell_value_safe($sheet, "$interestBalCol$row") : 0);
+        // Read raw values from balance columns.
+        // null return = cell is EMPTY = no transaction in this account on this row.
+        // Explicit 0 = balance genuinely reached zero (loan paid off, interest cleared).
+        $rawSav  = parse_amount($savingsBalCol  ? get_cell_value_safe($sheet, "$savingsBalCol$row")  : null);
+        $rawLoan = parse_amount($loanBalCol     ? get_cell_value_safe($sheet, "$loanBalCol$row")     : null);
+        $rawInt  = parse_amount($interestBalCol ? get_cell_value_safe($sheet, "$interestBalCol$row") : null);
 
-        // Ensure values are numeric and set to 0 if invalid
-        $currSavingsBal = is_numeric($currSavingsBal) ? $currSavingsBal : 0;
-        // Some sheets store loan/interest balances as negative numbers (CR convention).
-        // abs() normalises them so balance differences correctly identify disbursements vs repayments.
-        $currLoanBal = abs(is_numeric($currLoanBal) ? $currLoanBal : 0);
-        $currInterestBal = abs(is_numeric($currInterestBal) ? $currInterestBal : 0);
+        // Preserve null (empty cell) so this category is skipped for this row.
+        // Apply abs() to loan/interest to normalise sheets that store balances with a negative sign.
+        $currSavingsBal  = is_numeric($rawSav)  ? $rawSav        : null;
+        $currLoanBal     = is_numeric($rawLoan) ? abs($rawLoan)  : null;
+        $currInterestBal = is_numeric($rawInt)  ? abs($rawInt)   : null;
 
-        // Calculate balance changes using DR/CR logic
-        $savingsChange = $currSavingsBal - $prevSavingsBal;
-        $loanChange = $currLoanBal - $prevLoanBal;
-        $interestChange = $currInterestBal - $prevInterestBal;
+        // Compute change only for categories that had an entry this row.
+        $savingsChange  = ($currSavingsBal  !== null) ? $currSavingsBal  - $prevSavingsBal  : null;
+        $loanChange     = ($currLoanBal     !== null) ? $currLoanBal     - $prevLoanBal     : null;
+        $interestChange = ($currInterestBal !== null) ? $currInterestBal - $prevInterestBal : null;
 
-        // Insert transactions based on balance changes (removed threshold - insert any change)
-        // Savings: positive change = credit (deposit), negative = debit (withdrawal)
-        if ($savingsChange != 0) {
-            if ($savingsChange > 0) {
-                insertTransaction($pdo, $userId, $transDate, 'savings_credit', abs($savingsChange), "Savings Deposit", $transCount);
-                $transForSheet++;
-            } else {
-                insertTransaction($pdo, $userId, $transDate, 'savings_debit', abs($savingsChange), "Savings Withdrawal", $transCount);
-                $transForSheet++;
-            }
-        }
-
-        // Loan: positive change = disbursed (new loan), negative = repayment
-        if ($loanChange != 0) {
-            if ($loanChange > 0) {
-                insertTransaction($pdo, $userId, $transDate, 'loan_disbursed', abs($loanChange), "Loan Disbursed", $transCount);
-                $transForSheet++;
-            } else {
-                insertTransaction($pdo, $userId, $transDate, 'loan_repayment', abs($loanChange), "Loan Repayment", $transCount);
-                $transForSheet++;
-            }
-        }
-
-        // Interest: typically only increases (charged to member)
-        if ($interestChange > 0) {
-            insertTransaction($pdo, $userId, $transDate, 'interest_charged', abs($interestChange), "Loan Interest Charged", $transCount);
+        // Savings: increase = deposit, decrease = withdrawal
+        if ($savingsChange > 0) {
+            insertTransaction($pdo, $userId, $transDate, 'savings_credit', $savingsChange, "Savings Deposit", $transCount);
+            $transForSheet++;
+        } elseif ($savingsChange < 0) {
+            insertTransaction($pdo, $userId, $transDate, 'savings_debit', abs($savingsChange), "Savings Withdrawal", $transCount);
             $transForSheet++;
         }
 
-        // Update previous balances for next iteration
-        $prevSavingsBal = $currSavingsBal;
-        $prevLoanBal = $currLoanBal;
-        $prevInterestBal = $currInterestBal;
+        // Loans: increase = disbursement, decrease = repayment
+        if ($loanChange > 0) {
+            insertTransaction($pdo, $userId, $transDate, 'loan_disbursed', $loanChange, "Loan Disbursed", $transCount);
+            $transForSheet++;
+        } elseif ($loanChange < 0) {
+            insertTransaction($pdo, $userId, $transDate, 'loan_repayment', abs($loanChange), "Loan Repayment", $transCount);
+            $transForSheet++;
+        }
+
+        // Interest: increase = charged to member, decrease = paid by member
+        if ($interestChange > 0) {
+            insertTransaction($pdo, $userId, $transDate, 'interest_charged', $interestChange, "Loan Interest Charged", $transCount);
+            $transForSheet++;
+        } elseif ($interestChange < 0) {
+            insertTransaction($pdo, $userId, $transDate, 'interest_paid', abs($interestChange), "Loan Interest Payment", $transCount);
+            $transForSheet++;
+        }
+
+        // Advance only categories that had an entry this row
+        if ($currSavingsBal  !== null) $prevSavingsBal  = $currSavingsBal;
+        if ($currLoanBal     !== null) $prevLoanBal     = $currLoanBal;
+        if ($currInterestBal !== null) $prevInterestBal = $currInterestBal;
     }
     
     if ($transForSheet > 0) {

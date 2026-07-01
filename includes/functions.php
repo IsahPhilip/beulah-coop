@@ -129,12 +129,14 @@ function create_transaction(
  */
 function get_user_balances($pdo, $user_id) {
     $stmt = $pdo->prepare("
-        SELECT 
-            COALESCE(SUM(CASE WHEN type IN ('savings_credit') THEN amount ELSE 0 END), 0) AS total_savings,
-            COALESCE(SUM(CASE WHEN type = 'loan_disbursed' THEN amount ELSE 0 END), 0) -
-            COALESCE(SUM(CASE WHEN type = 'loan_repayment' THEN amount ELSE 0 END), 0) AS outstanding_loan,
-            COALESCE(SUM(CASE WHEN type = 'interest_charged' THEN amount ELSE 0 END), 0) AS total_interest
-        FROM transactions 
+        SELECT
+            COALESCE(SUM(CASE WHEN type = 'savings_credit' THEN amount ELSE 0 END), 0) -
+            COALESCE(SUM(CASE WHEN type = 'savings_debit'  THEN amount ELSE 0 END), 0) AS total_savings,
+            COALESCE(SUM(CASE WHEN type = 'loan_disbursed'  THEN amount ELSE 0 END), 0) -
+            COALESCE(SUM(CASE WHEN type = 'loan_repayment'  THEN amount ELSE 0 END), 0) AS outstanding_loan,
+            COALESCE(SUM(CASE WHEN type = 'interest_charged' THEN amount ELSE 0 END), 0) -
+            COALESCE(SUM(CASE WHEN type = 'interest_paid'    THEN amount ELSE 0 END), 0) AS outstanding_interest
+        FROM transactions
         WHERE user_id = ?
     ");
     $stmt->execute([$user_id]);

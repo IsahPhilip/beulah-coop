@@ -21,11 +21,13 @@ $dateTo = $_GET['date_to'] ?? date('Y-m-d');
 // Get financial summary
 $financialQuery = "
     SELECT 
-        SUM(CASE WHEN type = 'savings_credit' THEN amount ELSE 0 END) as total_savings,
+        SUM(CASE WHEN type = 'savings_credit' THEN amount ELSE 0 END) -
+        SUM(CASE WHEN type = 'savings_debit'  THEN amount ELSE 0 END) as total_savings,
         SUM(CASE WHEN type = 'loan_disbursed' THEN amount ELSE 0 END) as total_loans_disbursed,
         SUM(CASE WHEN type = 'loan_repayment' THEN amount ELSE 0 END) as total_loan_repayments,
-        SUM(CASE WHEN type = 'interest_charged' THEN amount ELSE 0 END) as total_interest
-    FROM transactions 
+        SUM(CASE WHEN type = 'interest_charged' THEN amount ELSE 0 END) -
+        SUM(CASE WHEN type = 'interest_paid'    THEN amount ELSE 0 END) as total_interest
+    FROM transactions
     WHERE trans_date BETWEEN ? AND ?
 ";
 $financialStmt = $pdo->prepare($financialQuery);

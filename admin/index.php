@@ -12,10 +12,12 @@ if ($_SESSION['role'] !== 'admin') {
 
 // Grand totals
 $stmt = $pdo->prepare("
-    SELECT 
-        SUM(CASE WHEN type IN ('savings_credit') THEN amount ELSE 0 END) as total_savings,
+    SELECT
+        SUM(CASE WHEN type = 'savings_credit' THEN amount ELSE 0 END) -
+        SUM(CASE WHEN type = 'savings_debit'  THEN amount ELSE 0 END) as total_savings,
         SUM(CASE WHEN type = 'loan_disbursed' THEN amount ELSE 0 END) as total_loans_issued,
-        SUM(CASE WHEN type = 'interest_charged' THEN amount ELSE 0 END) as total_interest
+        SUM(CASE WHEN type = 'interest_charged' THEN amount ELSE 0 END) -
+        SUM(CASE WHEN type = 'interest_paid'    THEN amount ELSE 0 END) as total_interest
     FROM transactions
 ");
 $stmt->execute();

@@ -31,9 +31,8 @@ try {
     }
 } catch (PDOException $e) { /* ignore */ }
 
-$error      = '';
-$successMsg = '';   // plain text
-$successHtml = '';  // may contain HTML (links, OTP display)
+$error       = '';
+$successMsg  = '';
 $emailSentTo = '';  // set after a successful send
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -255,15 +254,6 @@ TEXT;
 
             <?php if ($successMsg && !$error): ?>
                 <div class="alert alert-success mb-3"><?= htmlspecialchars($successMsg) ?></div>
-
-                <?php if ($successHtml): /* debug fallback */ ?>
-                    <div class="card border-warning mb-3">
-                        <div class="card-body">
-                            <p class="mb-2 fw-semibold text-warning">Debug options:</p>
-                            <?= $successHtml ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
 
                 <?php if ($emailSentTo): ?>
                     <!-- Show OTP entry option for users who receive the email -->

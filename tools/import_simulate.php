@@ -101,25 +101,32 @@ for ($i = 1; $i <= 80; $i++) {
         }
         if (!$transDate) continue;
 
-        try { $currSavingsBal = parse_amount($savingsBalCol ? $sheet->getCell($savingsBalCol . $row)->getCalculatedValue() : 0); }
-        catch (Exception $ex) { $currSavingsBal = null; }
-        try { $currLoanBal = parse_amount($loanBalCol ? $sheet->getCell($loanBalCol . $row)->getCalculatedValue() : 0); }
-        catch (Exception $ex) { $currLoanBal = null; }
-        try { $currInterestBal = parse_amount($interestBalCol ? $sheet->getCell($interestBalCol . $row)->getCalculatedValue() : 0); }
-        catch (Exception $ex) { $currInterestBal = null; }
+        // null = cell empty = no transaction in that account this row; explicit 0 = balance reached zero
+        try { $rawSav = parse_amount($savingsBalCol ? $sheet->getCell($savingsBalCol . $row)->getCalculatedValue() : null); }
+        catch (Exception $ex) { $rawSav = null; }
+        try { $rawLoan = parse_amount($loanBalCol ? $sheet->getCell($loanBalCol . $row)->getCalculatedValue() : null); }
+        catch (Exception $ex) { $rawLoan = null; }
+        try { $rawInt = parse_amount($interestBalCol ? $sheet->getCell($interestBalCol . $row)->getCalculatedValue() : null); }
+        catch (Exception $ex) { $rawInt = null; }
 
-        $currSavingsBal = is_numeric($currSavingsBal) ? $currSavingsBal : 0;
-        $currLoanBal = abs(is_numeric($currLoanBal) ? $currLoanBal : 0);
-        $currInterestBal = abs(is_numeric($currInterestBal) ? $currInterestBal : 0);
+        $currSavingsBal  = is_numeric($rawSav)  ? $rawSav       : null;
+        $currLoanBal     = is_numeric($rawLoan) ? abs($rawLoan) : null;
+        $currInterestBal = is_numeric($rawInt)  ? abs($rawInt)  : null;
 
-        $savingsChange = $currSavingsBal - $prevSavingsBal;
-        $loanChange = $currLoanBal - $prevLoanBal;
-        $interestChange = $currInterestBal - $prevInterestBal;
+        $savingsChange  = ($currSavingsBal  !== null) ? $currSavingsBal  - $prevSavingsBal  : null;
+        $loanChange     = ($currLoanBal     !== null) ? $currLoanBal     - $prevLoanBal     : null;
+        $interestChange = ($currInterestBal !== null) ? $currInterestBal - $prevInterestBal : null;
 
-        if ($savingsChange != 0) { echo "  $transDate: savings change: $savingsChange\n"; $transForSheet++; }
-        if ($loanChange != 0) { echo "  $transDate: loan change: $loanChange\n"; $transForSheet++; }
-        if ($interestChange > 0) { echo "  $transDate: interest change: $interestChange\n"; $transForSheet++; }
-        $prevSavingsBal = $currSavingsBal; $prevLoanBal = $currLoanBal; $prevInterestBal = $currInterestBal;
+        if ($savingsChange > 0)    { echo "  $transDate: savings_credit " . number_format($savingsChange, 2) . "\n"; $transForSheet++; }
+        elseif ($savingsChange < 0) { echo "  $transDate: savings_debit  " . number_format(abs($savingsChange), 2) . "\n"; $transForSheet++; }
+        if ($loanChange > 0)        { echo "  $transDate: loan_disbursed " . number_format($loanChange, 2) . "\n"; $transForSheet++; }
+        elseif ($loanChange < 0)    { echo "  $transDate: loan_repayment " . number_format(abs($loanChange), 2) . "\n"; $transForSheet++; }
+        if ($interestChange > 0)    { echo "  $transDate: interest_charged " . number_format($interestChange, 2) . "\n"; $transForSheet++; }
+        elseif ($interestChange < 0){ echo "  $transDate: interest_paid  " . number_format(abs($interestChange), 2) . "\n"; $transForSheet++; }
+
+        if ($currSavingsBal  !== null) $prevSavingsBal  = $currSavingsBal;
+        if ($currLoanBal     !== null) $prevLoanBal     = $currLoanBal;
+        if ($currInterestBal !== null) $prevInterestBal = $currInterestBal;
     }
     echo "  Transactions detected: $transForSheet\n";
 }
