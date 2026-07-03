@@ -166,9 +166,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Fetch members with balances
 $stmt = $pdo->query("
     SELECT u.*, 
-           COALESCE(SUM(CASE WHEN t.type IN ('savings_credit') THEN t.amount ELSE 0 END), 0) as savings,
+           COALESCE(SUM(CASE WHEN t.type IN ('savings_credit') THEN t.amount ELSE 0 END), 0) -
+           COALESCE(SUM(CASE WHEN t.type IN ('savings_debit') THEN t.amount ELSE 0 END), 0) as savings,
            COALESCE(SUM(CASE WHEN t.type = 'loan_disbursed' THEN t.amount ELSE 0 END), 0) -
-           COALESCE(SUM(CASE WHEN t.type = 'loan_repayment' THEN t.amount ELSE 0 END), 0) as loan_outstanding
+           COALESCE(SUM(CASE WHEN t.type = 'loan_repayment' THEN t.amount ELSE 0 END), 0) as loan_outstanding,
+           COALESCE(SUM(CASE WHEN t.type = 'loan_disbursed' THEN t.amount ELSE 0 END), 0) as total_loans_issued
     FROM users u 
     LEFT JOIN transactions t ON u.id = t.user_id 
     WHERE u.role = 'member'
@@ -177,13 +179,13 @@ $stmt = $pdo->query("
 ");
 $members = $stmt->fetchAll();
 
-// Calculate summary
+// Calculate summary (matching admin/index.php logic)
 $totalMembers = count($members);
 $totalSavings = 0;
 $totalLoans = 0;
 foreach ($members as $m) {
     $totalSavings += (float)($m['savings'] ?? 0);
-    $totalLoans += (float)($m['loan_outstanding'] ?? 0);
+    $totalLoans += (float)($m['total_loans_issued'] ?? 0);
 }
 ?>
 
@@ -251,8 +253,8 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                     <td><?= htmlspecialchars($m['name']) ?></td>
                     <td><?= htmlspecialchars($m['email'] ?? '') ?></td>
                     <td><?= htmlspecialchars($m['phone'] ?? '') ?></td>
-                    <td><?= format_money($m['savings'] ?? 0) ?></td>
-                    <td><?= format_money($m['loan_outstanding'] ?? 0) ?></td>
+                <td><?= format_money($m['savings'] ?? 0) ?></td>
+                <td><?= format_money($m['loan_outstanding'] ?? 0) ?></td>
                     <td>
                         <a href="transactions.php?user_id=<?= $m['id'] ?>" class="btn btn-sm btn-primary">View</a>
                         <button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
