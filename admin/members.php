@@ -32,6 +32,8 @@ function normalize_coop_no($value) {
 
 $error = '';
 $success = '';
+$hasStatusColumn = table_has_column($pdo, 'users', 'status');
+$hasReceiptColumn = table_has_column($pdo, 'users', 'receipt_path');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? null;
@@ -126,6 +128,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
             }
         }
+    } elseif ($action === 'approve_registration') {
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$hasStatusColumn) {
+            if ($isAjax) respond_json(['ok' => false, 'error' => 'Registration approval is not supported until the database migration is applied.']);
+        }
+        if ($id <= 0) {
+            if ($isAjax) respond_json(['ok' => false, 'error' => 'Invalid user.']);
+        } else {
+            $stmt = $pdo->prepare("UPDATE users SET status = 'approved' WHERE id = ? AND role = 'member'");
+            $stmt->execute([$id]);
+            log_audit($pdo, $_SESSION['user_id'], 'registration_approved', "Approved registration for user {$id}");
+            if ($isAjax) respond_json(['ok' => true, 'message' => 'Registration approved.']);
+            $success = 'Registration approved.';
+        }
+    } elseif ($action === 'reject_registration') {
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$hasStatusColumn) {
+            if ($isAjax) respond_json(['ok' => false, 'error' => 'Registration approval is not supported until the database migration is applied.']);
+        }
+        if ($id <= 0) {
+            if ($isAjax) respond_json(['ok' => false, 'error' => 'Invalid user.']);
+        } else {
+            $stmt = $pdo->prepare("UPDATE users SET status = 'rejected' WHERE id = ? AND role = 'member'");
+            $stmt->execute([$id]);
+            log_audit($pdo, $_SESSION['user_id'], 'registration_rejected', "Rejected registration for user {$id}");
+            if ($isAjax) respond_json(['ok' => true, 'message' => 'Registration rejected.']);
+            $success = 'Registration rejected.';
+        }
     } elseif (isset($_POST['add_member'])) {
         $coopNo = normalize_coop_no($_POST['coop_no'] ?? '');
         $name = trim($_POST['name'] ?? '');
@@ -164,8 +194,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Fetch members with balances
+$selectStatus = $hasStatusColumn ? ', u.status, u.receipt_path' : '';
 $stmt = $pdo->query("
-    SELECT u.*, 
+    SELECT u.*{$selectStatus}, 
            COALESCE(SUM(CASE WHEN t.type IN ('savings_credit') THEN t.amount ELSE 0 END), 0) -
            COALESCE(SUM(CASE WHEN t.type IN ('savings_debit') THEN t.amount ELSE 0 END), 0) as savings,
            COALESCE(SUM(CASE WHEN t.type = 'loan_disbursed' THEN t.amount ELSE 0 END), 0) -
@@ -237,6 +268,8 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                     <th>Name</th>
                     <th>Email</th>
                     <th>Phone</th>
+                    <?php if ($hasStatusColumn): ?><th>Status</th><?php endif; ?>
+                    <?php if ($hasReceiptColumn): ?><th>Receipt</th><?php endif; ?>
                     <th>Savings</th>
                     <th>Loan Outstanding</th>
                     <th>Actions</th>
@@ -248,17 +281,38 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                     data-coop-no="<?= htmlspecialchars($m['coop_no']) ?>"
                     data-name="<?= htmlspecialchars($m['name']) ?>"
                     data-email="<?= htmlspecialchars($m['email'] ?? '') ?>"
-                    data-phone="<?= htmlspecialchars($m['phone'] ?? '') ?>">
+                    data-phone="<?= htmlspecialchars($m['phone'] ?? '') ?>"
+                    data-status="<?= htmlspecialchars($m['status'] ?? '') ?>"
+                    data-receipt-path="<?= htmlspecialchars($m['receipt_path'] ?? '') ?>">
                     <td><?= htmlspecialchars($m['coop_no']) ?></td>
                     <td><?= htmlspecialchars($m['name']) ?></td>
                     <td><?= htmlspecialchars($m['email'] ?? '') ?></td>
                     <td><?= htmlspecialchars($m['phone'] ?? '') ?></td>
-                <td><?= format_money($m['savings'] ?? 0) ?></td>
-                <td><?= format_money($m['loan_outstanding'] ?? 0) ?></td>
+                    <?php if ($hasStatusColumn): ?>
+                        <?php
+                            $statusText = $m['status'] ?? 'approved';
+                            $statusClass = $statusText === 'approved' ? 'success' : ($statusText === 'pending' ? 'warning' : ($statusText === 'receipt_submitted' ? 'info' : ($statusText === 'rejected' ? 'danger' : 'secondary')));
+                        ?>
+                        <td><span class="badge bg-<?= $statusClass ?>"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $statusText))) ?></span></td>
+                    <?php endif; ?>
+                    <?php if ($hasReceiptColumn): ?>
+                        <td>
+                            <?php if (!empty($m['receipt_path'])): ?>
+                                <a href="<?= htmlspecialchars($m['receipt_path']) ?>" target="_blank" class="text-decoration-none">View</a>
+                            <?php else: ?>
+                                <span class="text-muted">None</span>
+                            <?php endif; ?>
+                        </td>
+                    <?php endif; ?>
+                    <td><?= format_money($m['savings'] ?? 0) ?></td>
+                    <td><?= format_money($m['loan_outstanding'] ?? 0) ?></td>
                     <td>
                         <a href="transactions.php?user_id=<?= $m['id'] ?>" class="btn btn-sm btn-primary">View</a>
                         <button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
                         <button type="button" class="btn btn-sm btn-outline-danger btn-delete">Delete</button>
+                        <?php if ($hasStatusColumn && ($m['status'] ?? 'approved') !== 'approved'): ?>
+                            <button type="button" class="btn btn-sm btn-outline-success btn-verify-registration">Verify</button>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -345,6 +399,38 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
     </div>
 </div>
 
+<div class="modal fade" id="verifyRegistrationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Verify Registration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="verifyUserId">
+                <div class="mb-3">
+                    <label class="form-label">Coop No.</label>
+                    <input type="text" id="verifyCoopNo" class="form-control" disabled>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="verifyName" class="form-control" disabled>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Current Status</label>
+                    <input type="text" id="verifyStatusText" class="form-control" disabled>
+                </div>
+                <div class="mb-3" id="receiptPreviewContainer"></div>
+                <div class="alert alert-secondary">Approve to allow access, or reject to block registration.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="rejectRegistrationBtn">Reject Registration</button>
+                <button type="button" class="btn btn-success" id="approveRegistrationBtn">Approve Registration</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
@@ -356,6 +442,8 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
+const hasStatusColumn = <?= $hasStatusColumn ? 'true' : 'false' ?>;
+const hasReceiptColumn = <?= $hasReceiptColumn ? 'true' : 'false' ?>;
 const membersTable = $('#membersTable').DataTable({
     searching: true,
     pageLength: 25,
@@ -409,13 +497,23 @@ document.getElementById('addMemberForm').addEventListener('submit', async functi
         m.coop_no,
         m.name,
         m.email || '',
-        m.phone || '',
+        m.phone || ''
+    ];
+
+    if (hasStatusColumn) {
+        rowHtml.push('<span class="badge bg-success">Approved</span>');
+    }
+    if (hasReceiptColumn) {
+        rowHtml.push('<span class="text-muted">None</span>');
+    }
+
+    rowHtml.push(
         '₦0.00',
         '₦0.00',
         `<a href="transactions.php?user_id=${m.id}" class="btn btn-sm btn-primary">View</a>
          <button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
          <button type="button" class="btn btn-sm btn-outline-danger btn-delete">Delete</button>`
-    ];
+    );
 
     const rowNode = membersTable.row.add(rowHtml).draw(false).node();
     rowNode.setAttribute('data-id', m.id);
@@ -423,6 +521,12 @@ document.getElementById('addMemberForm').addEventListener('submit', async functi
     rowNode.setAttribute('data-name', m.name);
     rowNode.setAttribute('data-email', m.email || '');
     rowNode.setAttribute('data-phone', m.phone || '');
+    if (hasStatusColumn) {
+        rowNode.setAttribute('data-status', 'approved');
+    }
+    if (hasReceiptColumn) {
+        rowNode.setAttribute('data-receipt-path', '');
+    }
 
     form.reset();
     showMemberAlert(json.message || 'Member added.', 'success');
@@ -487,6 +591,91 @@ document.getElementById('saveMemberChanges').addEventListener('click', async fun
     }
     showMemberAlert(json.message || 'Member updated.', 'success');
     bootstrap.Modal.getInstance(document.getElementById('editMemberModal')).hide();
+});
+
+document.getElementById('membersTable').addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-verify-registration');
+    if (!btn) return;
+    const row = btn.closest('tr');
+    document.getElementById('verifyUserId').value = row.getAttribute('data-id');
+    document.getElementById('verifyCoopNo').value = row.getAttribute('data-coop-no') || '';
+    document.getElementById('verifyName').value = row.getAttribute('data-name') || '';
+    document.getElementById('verifyStatusText').value = (row.getAttribute('data-status') || 'pending').replace(/_/g, ' ');
+
+    const receiptContainer = document.getElementById('receiptPreviewContainer');
+    const receiptPath = row.getAttribute('data-receipt-path') || '';
+    if (receiptPath) {
+        receiptContainer.innerHTML = `<strong>Receipt:</strong> <a href="${receiptPath}" target="_blank">View uploaded receipt</a>`;
+    } else {
+        receiptContainer.innerHTML = '<div class="alert alert-warning mb-0">No receipt uploaded for this registration.</div>';
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('verifyRegistrationModal'));
+    modal.show();
+});
+
+document.getElementById('approveRegistrationBtn').addEventListener('click', async function() {
+    const userId = document.getElementById('verifyUserId').value;
+    const data = new FormData();
+    data.append('action', 'approve_registration');
+    data.append('ajax', '1');
+    data.append('id', userId);
+
+    let json;
+    try {
+        ({ json } = await postJson(data));
+    } catch (err) {
+        showMemberAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
+        return;
+    }
+    if (!json.ok) {
+        showMemberAlert(json.error || 'Failed to approve registration.', 'danger');
+        return;
+    }
+
+    const row = document.querySelector(`tr[data-id="${userId}"]`);
+    if (row) {
+        row.setAttribute('data-status', 'approved');
+        const statusCell = row.querySelector('td:nth-child(5)');
+        if (statusCell) {
+            statusCell.innerHTML = '<span class="badge bg-success">Approved</span>';
+        }
+    }
+
+    bootstrap.Modal.getInstance(document.getElementById('verifyRegistrationModal')).hide();
+    showMemberAlert(json.message || 'Registration approved.', 'success');
+});
+
+document.getElementById('rejectRegistrationBtn').addEventListener('click', async function() {
+    const userId = document.getElementById('verifyUserId').value;
+    const data = new FormData();
+    data.append('action', 'reject_registration');
+    data.append('ajax', '1');
+    data.append('id', userId);
+
+    let json;
+    try {
+        ({ json } = await postJson(data));
+    } catch (err) {
+        showMemberAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
+        return;
+    }
+    if (!json.ok) {
+        showMemberAlert(json.error || 'Failed to reject registration.', 'danger');
+        return;
+    }
+
+    const row = document.querySelector(`tr[data-id="${userId}"]`);
+    if (row) {
+        row.setAttribute('data-status', 'rejected');
+        const statusCell = row.querySelector('td:nth-child(5)');
+        if (statusCell) {
+            statusCell.innerHTML = '<span class="badge bg-danger">Rejected</span>';
+        }
+    }
+
+    bootstrap.Modal.getInstance(document.getElementById('verifyRegistrationModal')).hide();
+    showMemberAlert(json.message || 'Registration rejected.', 'success');
 });
 
 document.getElementById('membersTable').addEventListener('click', async function(e) {

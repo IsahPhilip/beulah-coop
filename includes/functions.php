@@ -162,6 +162,17 @@ function get_upload_config() {
 }
 
 /**
+ * Get receipt upload configuration
+ */
+function get_receipt_upload_config() {
+    return [
+        'max_size' => (int) env('RECEIPT_UPLOAD_MAX_SIZE', 5242880),
+        'receipts_dir' => env('RECEIPT_UPLOAD_DIR', 'uploads/receipts/'),
+        'allowed_types' => explode(',', env('ALLOWED_RECEIPT_TYPES', 'jpeg,png,pdf')),
+    ];
+}
+
+/**
  * Get 2FA configuration
  */
 function get_2fa_config() {

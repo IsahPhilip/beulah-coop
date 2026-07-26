@@ -68,7 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $passwordColumn = resolve_password_column($pdo);
             
             $selectTwofa = $twofaColumn ? ", {$twofaColumn} AS twofa_enabled" : "";
-            $stmt = $pdo->prepare("SELECT id, coop_no, name, {$passwordColumn}, role, email{$selectTwofa} FROM users WHERE coop_no = ?");
+            $selectStatus = table_has_column($pdo, 'users', 'status') ? ', status' : '';
+            $stmt = $pdo->prepare("SELECT id, coop_no, name, {$passwordColumn}, role, email{$selectTwofa}{$selectStatus} FROM users WHERE coop_no = ?");
             $stmt->execute([$coop_no]);
             $user = $stmt->fetch();
 
@@ -76,6 +77,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "Invalid Coop No. or Password.";
             } elseif (!password_verify($password, $user[$passwordColumn])) {
                 $error = "Invalid Coop No. or Password.";
+            } elseif ($user['role'] !== 'admin' && isset($user['status']) && $user['status'] !== 'approved') {
+                if ($user['status'] === 'pending') {
+                    $error = "Your registration is pending. Please upload your payment receipt so the admin can verify it.";
+                } elseif ($user['status'] === 'receipt_submitted') {
+                    $error = "Your receipt has been submitted and is awaiting admin verification.";
+                } elseif ($user['status'] === 'rejected') {
+                    $error = "Your registration has been rejected. Please contact the admin for details.";
+                } else {
+                    $error = "Your account is not approved yet. Please wait for admin verification.";
+                }
             } else {
                 // User authenticated successfully
                 $twofaEnabled = !empty($user['twofa_enabled']);
@@ -213,8 +224,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="password" name="password" class="form-control" required>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Login</button>
-                <div class="auth-footer">
+                <div class="auth-footer d-flex justify-content-between">
                     <a href="forgot-password.php" class="text-decoration-none">Forgot your password?</a>
+                    <a href="register.php" class="text-decoration-none">New user? Register</a>
                 </div>
             </form>
         </div>
