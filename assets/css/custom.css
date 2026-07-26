@@ -1,4 +1,4 @@
-:root {
+﻿:root {
 	    --primary: #4F46E5;
 	    --primary-light: #6366F1;
 	    --primary-lighter: #A5B4FC;
@@ -390,42 +390,154 @@ a {
 .badge-interest { background: #FEF3C7; color: #92400E; }
 .badge-debit    { background: #FEE2E2; color: #991B1B; }
 
+
 /* ============================================
    Premium Select / Form Select
    ============================================ */
 .form-select {
     display: block;
     width: 100%;
-    border-radius: 0.5rem;
-    border: 1px solid var(--gray-300);
-    padding: 0.625rem 2.5rem 0.625rem 1rem;
+    border-radius: 0.625rem;
+    border: 1.5px solid var(--gray-200);
+    padding: 0.65rem 2.75rem 0.65rem 1rem;
     font-size: 0.875rem;
-    background-color: var(--bg-surface);
+    background-color: var(--gray-50);
     color: var(--gray-800);
     font-family: var(--font-family);
     font-weight: 500;
     appearance: none;
     -webkit-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 256 256'%3E%3Cpath fill='%236B7280' d='m213.66 101.66-80 80a8 8 0 0 1-11.32 0l-80-80a8 8 0 0 1 11.32-11.32L128 164.69l74.34-74.35a8 8 0 0 1 11.32 11.32Z'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 256 256'%3E%3Cpath fill='%234F46E5' d='m213.66 101.66-80 80a8 8 0 0 1-11.32 0l-80-80a8 8 0 0 1 11.32-11.32L128 164.69l74.34-74.35a8 8 0 0 1 11.32 11.32Z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 0.75rem center;
+    background-position: right 0.85rem center;
     background-size: 1rem;
-    transition: all 0.2s;
+    transition: border-color 0.18s, box-shadow 0.18s, background-color 0.18s;
     cursor: pointer;
     line-height: 1.5;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.form-select:hover {
+    border-color: var(--primary-lighter);
+    background-color: var(--bg-surface);
+}
+.form-select:focus {
+    border-color: var(--primary);
+    background-color: var(--bg-surface);
+    box-shadow: 0 0 0 3px var(--primary-lightest);
+    outline: none;
+}
+.form-select option {
+    font-weight: 500;
+    color: var(--gray-800);
+    background: var(--bg-surface);
 }
 
-.form-select:focus {
+/* ============================================
+   Premium Table Filter Bar
+   ============================================ */
+.dash-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, var(--gray-50) 0%, #EEEFFE 100%);
+    border-radius: 1rem;
+    border: 1.5px solid var(--gray-200);
+    margin-bottom: 1.25rem;
+}
+.dash-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 140px;
+}
+.dash-filter-group label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.dash-filter-group .form-control,
+.dash-filter-group .form-select {
+    border: 1.5px solid var(--gray-200);
+    border-radius: 0.625rem;
+    background: var(--bg-surface);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--gray-800);
+    padding: 0 0.875rem;
+    height: 38px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: border-color 0.18s, box-shadow 0.18s;
+}
+.dash-filter-group .form-control:focus,
+.dash-filter-group .form-select:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-lightest);
     outline: none;
 }
-
-.form-select:hover {
-    border-color: var(--gray-400, #9CA3AF);
+.dash-filter-group input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.55;
+    cursor: pointer;
+    filter: invert(28%) sepia(90%) saturate(500%) hue-rotate(220deg);
 }
-
-/* ============================================
+.dash-filter-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+.btn-filter-clear {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 38px;
+    padding: 0 1rem;
+    border-radius: 0.625rem;
+    border: 1.5px solid var(--gray-200);
+    background: var(--bg-surface);
+    color: var(--gray-600);
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font-family);
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+}
+.btn-filter-clear:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: var(--danger-light);
+}
+.btn-filter-apply {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 38px;
+    padding: 0 1.1rem;
+    border-radius: 0.625rem;
+    border: 1.5px solid var(--primary);
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font-family);
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(79,70,229,0.2);
+}
+.btn-filter-apply:hover {
+    background: var(--primary-dark);
+    border-color: var(--primary-dark);
+    box-shadow: 0 4px 12px rgba(79,70,229,0.3);
+    transform: translateY(-1px);
+}
    Password Change Banner
    ============================================ */
 .pwd-change-banner {
@@ -994,20 +1106,20 @@ a {
     overflow-x: auto;
 }
 
-.dash-filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-}
 
-.dash-filter-group label {
-    font-size: 0.8rem;
-    color: var(--gray-600);
-    font-weight: 600;
-}
 
-.dash-panel .table {
-    margin-bottom: 0;
+
+
+
+
+
+
+
+
+
+
+
+
 }
 
 .dash-panel .table-hover tbody tr:hover {

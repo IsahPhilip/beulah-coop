@@ -196,18 +196,31 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
     <?php endif; ?>
     <div class="dash-panel dash-panel-table">
         <div class="dash-panel-title">Transactions</div>
-        <div class="dash-filters d-flex flex-wrap align-items-end gap-3 mb-3">
+        <div class="dash-filters">
             <div class="dash-filter-group">
-                <label for="dateFrom">From</label>
-                <input type="date" id="dateFrom" class="form-control form-control-sm">
+                <label for="dateFrom"><i class="ph-bold ph-calendar-blank"></i> From</label>
+                <input type="date" id="dateFrom" class="form-control">
             </div>
             <div class="dash-filter-group">
-                <label for="dateTo">To</label>
-                <input type="date" id="dateTo" class="form-control form-control-sm">
+                <label for="dateTo"><i class="ph-bold ph-calendar-check"></i> To</label>
+                <input type="date" id="dateTo" class="form-control">
             </div>
-            <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
-                <i class="ph-bold ph-x-circle me-1"></i>Clear
-            </button>
+            <div class="dash-filter-group">
+                <label for="typeFilter"><i class="ph-bold ph-funnel"></i> Type</label>
+                <select id="typeFilter" class="form-select">
+                    <option value="">All types</option>
+                    <option value="savings credit">Savings Credit</option>
+                    <option value="savings debit">Savings Debit</option>
+                    <option value="loan disbursed">Loan Disbursed</option>
+                    <option value="loan repayment">Loan Repayment</option>
+                    <option value="interest charged">Interest Charged</option>
+                </select>
+            </div>
+            <div class="dash-filter-actions">
+                <button class="btn-filter-clear" onclick="clearFilters()" type="button">
+                    <i class="ph-bold ph-x"></i> Clear
+                </button>
+            </div>
         </div>
         <div class="table-responsive">
             <table id="transactionsTable" class="table table-hover dash-table-grid">
@@ -369,19 +382,20 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
-const dateFrom = document.getElementById('dateFrom');
-const dateTo = document.getElementById('dateTo');
+const dateFrom   = document.getElementById('dateFrom');
+const dateTo     = document.getElementById('dateTo');
+const typeFilter = document.getElementById('typeFilter');
 
 $.fn.dataTable.ext.search.push(function(settings, data) {
     if (settings.nTable.id !== 'transactionsTable') return true;
     const min = dateFrom.value ? new Date(dateFrom.value) : null;
-    const max = dateTo.value ? new Date(dateTo.value) : null;
-    const dateStr = data[0] || '';
-    const rowDate = new Date(dateStr);
-
+    const max = dateTo.value   ? new Date(dateTo.value)   : null;
+    const rowDate = new Date(data[0] || '');
     if (Number.isNaN(rowDate.getTime())) return true;
     if (min && rowDate < min) return false;
     if (max && rowDate > max) return false;
+    const typeVal = (typeFilter.value || '').toLowerCase();
+    if (typeVal && !(data[2] || '').toLowerCase().includes(typeVal)) return false;
     return true;
 });
 
@@ -390,17 +404,19 @@ const transactionsTable = $('#transactionsTable').DataTable({
     pageLength: 25,
     dom: '<"dt-top"lfB>rt<"dt-bottom"ip>',
     buttons: [
-        { extend: 'csvHtml5', className: 'btn btn-outline-primary btn-sm', text: 'Export CSV' },
-        { extend: 'pdfHtml5', className: 'btn btn-outline-primary btn-sm', text: 'Export PDF', orientation: 'landscape' }
+        { extend: 'csvHtml5', className: 'btn btn-outline-primary btn-sm', text: '<i class="ph-bold ph-file-csv me-1"></i>Export CSV' },
+        { extend: 'pdfHtml5', className: 'btn btn-outline-primary btn-sm', text: '<i class="ph-bold ph-file-pdf me-1"></i>Export PDF', orientation: 'landscape' }
     ]
 });
 
-dateFrom.addEventListener('change', () => transactionsTable.draw());
-dateTo.addEventListener('change', () => transactionsTable.draw());
+dateFrom.addEventListener('change',   () => transactionsTable.draw());
+dateTo.addEventListener('change',     () => transactionsTable.draw());
+typeFilter.addEventListener('change', () => transactionsTable.draw());
 
 function clearFilters() {
-    dateFrom.value = '';
-    dateTo.value = '';
+    dateFrom.value   = '';
+    dateTo.value     = '';
+    typeFilter.value = '';
     transactionsTable.draw();
 }
 
