@@ -15,8 +15,10 @@ if (isset($_SESSION['user_id'])) {
 
 $error = '';
 $success = '';
+$activeStep = 1;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $activeStep = max(1, min(2, (int)($_POST['current_step'] ?? 1)));
     $name     = trim($_POST['name'] ?? '');
     $email    = trim($_POST['email'] ?? '');
     $phone    = trim($_POST['phone'] ?? '');
@@ -147,78 +149,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="POST" autocomplete="off">
-                <div class="mb-3 mt-2">
-                    <div class="fw-600 text-primary mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;">
-                        <i class="ph-bold ph-user me-1"></i>Personal Information
+                <input type="hidden" name="current_step" id="currentStepInput" value="<?= htmlspecialchars((string)$activeStep) ?>">
+
+                <div class="register-steps mb-4">
+                    <div class="step-pill <?= $activeStep === 1 ? 'active' : '' ?>" data-step="1">
+                        <span class="step-number">1</span>
+                        <span>Account Details</span>
                     </div>
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label">Full Name</label>
-                            <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($_POST['name'] ?? '') ?>" required>
+                    <div class="step-pill <?= $activeStep === 2 ? 'active' : '' ?>" data-step="2">
+                        <span class="step-number">2</span>
+                        <span>Guarantor Info</span>
+                    </div>
+                </div>
+
+                <div class="step-content <?= $activeStep === 1 ? 'active' : '' ?>" data-step-content="1">
+                    <div class="mb-3 mt-2">
+                        <div class="fw-600 text-primary mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;">
+                            <i class="ph-bold ph-user me-1"></i>Personal Information
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Email Address</label>
-                            <input type="email" name="email" class="form-control" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Phone Number</label>
-                            <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Password</label>
-                            <div class="password-field">
-                                <input type="password" name="password" class="form-control password-toggle-input pe-5" required minlength="<?= get_password_min_length() ?>">
-                                <button type="button" class="password-toggle" aria-label="Show password">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
-                                        <circle cx="12" cy="12" r="3"></circle>
-                                    </svg>
-                                </button>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Full Name</label>
+                                <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($_POST['name'] ?? '') ?>" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" name="email" class="form-control" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone Number</label>
+                                <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Password</label>
+                                <div class="password-field">
+                                    <input type="password" name="password" class="form-control password-toggle-input pe-5" required minlength="<?= get_password_min_length() ?>">
+                                    <button type="button" class="password-toggle" aria-label="Show password">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Confirm Password</label>
+                                <div class="password-field">
+                                    <input type="password" name="confirm_password" class="form-control password-toggle-input pe-5" required>
+                                    <button type="button" class="password-toggle" aria-label="Show password">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Confirm Password</label>
-                            <div class="password-field">
-                                <input type="password" name="confirm_password" class="form-control password-toggle-input pe-5" required>
-                                <button type="button" class="password-toggle" aria-label="Show password">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
-                                        <circle cx="12" cy="12" r="3"></circle>
-                                    </svg>
-                                </button>
+                    </div>
+
+                    <div class="mt-4 d-flex justify-content-between align-items-center">
+                        <div></div>
+                        <button type="button" class="btn btn-primary next-step-btn">
+                            Next <i class="ph-bold ph-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="step-content <?= $activeStep === 2 ? 'active' : '' ?>" data-step-content="2">
+                    <div class="mb-3">
+                        <div class="fw-600 text-primary mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;">
+                            <i class="ph-bold ph-shield-check me-1"></i>Guarantor Information
+                        </div>
+                        <p class="text-muted" style="font-size:.8rem;">Your guarantor must be an existing active member of Beulah Cooperative Society.</p>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Guarantor Full Name</label>
+                                <input type="text" name="guarantor_name" class="form-control" value="<?= htmlspecialchars($_POST['guarantor_name'] ?? '') ?>" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Guarantor Phone</label>
+                                <input type="text" name="guarantor_phone" class="form-control" value="<?= htmlspecialchars($_POST['guarantor_phone'] ?? '') ?>" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Guarantor Coop No.</label>
+                                <input type="text" name="guarantor_coop_no" class="form-control" placeholder="e.g. BC/001" value="<?= htmlspecialchars($_POST['guarantor_coop_no'] ?? '') ?>" required>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <hr class="my-3">
-
-                <div class="mb-3">
-                    <div class="fw-600 text-primary mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;">
-                        <i class="ph-bold ph-shield-check me-1"></i>Guarantor Information
-                    </div>
-                    <p class="text-muted" style="font-size:.8rem;">Your guarantor must be an existing active member of Beulah Cooperative Society.</p>
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label">Guarantor Full Name</label>
-                            <input type="text" name="guarantor_name" class="form-control" value="<?= htmlspecialchars($_POST['guarantor_name'] ?? '') ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Guarantor Phone</label>
-                            <input type="text" name="guarantor_phone" class="form-control" value="<?= htmlspecialchars($_POST['guarantor_phone'] ?? '') ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Guarantor Coop No.</label>
-                            <input type="text" name="guarantor_coop_no" class="form-control" placeholder="e.g. BC/001" value="<?= htmlspecialchars($_POST['guarantor_coop_no'] ?? '') ?>" required>
-                        </div>
+                    <div class="mt-4 d-flex justify-content-between align-items-center">
+                        <button type="button" class="btn btn-outline-secondary prev-step-btn">
+                            <i class="ph-bold ph-arrow-left me-1"></i>Back
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="ph-bold ph-user-plus me-1"></i>Register
+                        </button>
                     </div>
                 </div>
 
-                <div class="mt-4">
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="ph-bold ph-user-plus me-1"></i>Register
-                    </button>
-                </div>
                 <div class="auth-footer text-center mt-3">
                     Already have an account? <a href="login.php">Sign in</a>
                 </div>
@@ -228,19 +256,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 <script>
-document.querySelectorAll('.password-field').forEach(function (field) {
-    const input = field.querySelector('input');
-    const button = field.querySelector('.password-toggle');
-    if (!input || !button) return;
+function setupPasswordToggles() {
+    document.querySelectorAll('.password-field').forEach(function (field) {
+        const input = field.querySelector('input');
+        const button = field.querySelector('.password-toggle');
+        if (!input || !button) return;
 
-    button.addEventListener('click', function (event) {
-        event.preventDefault();
-        const isPassword = input.type === 'password';
-        input.type = isPassword ? 'text' : 'password';
-        button.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
-        button.innerHTML = isPassword
-            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"></path><path d="M10.58 10.58A3 3 0 0 0 13.42 13.42"></path><path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.8 17.8 0 0 1-4.16 5.01"></path><path d="M6.61 6.61A17.7 17.7 0 0 0 2 12s3.5 7 10 7a10.9 10.9 0 0 0 4.4-.93"></path></svg>'
-            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            button.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+            button.innerHTML = isPassword
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"></path><path d="M10.58 10.58A3 3 0 0 0 13.42 13.42"></path><path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.8 17.8 0 0 1-4.16 5.01"></path><path d="M6.61 6.61A17.7 17.7 0 0 0 2 12s3.5 7 10 7a10.9 10.9 0 0 0 4.4-.93"></path></svg>'
+                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+        });
+    });
+}
+
+function showStep(step) {
+    document.querySelectorAll('.step-content').forEach(function (content) {
+        content.classList.toggle('active', Number(content.getAttribute('data-step-content')) === step);
+    });
+
+    document.querySelectorAll('.step-pill').forEach(function (pill) {
+        pill.classList.toggle('active', Number(pill.getAttribute('data-step')) === step);
+    });
+
+    const currentStepInput = document.getElementById('currentStepInput');
+    if (currentStepInput) {
+        currentStepInput.value = String(step);
+    }
+}
+
+function validateCurrentStep(step) {
+    const container = document.querySelector('.step-content.active');
+    if (!container) return true;
+
+    const fields = Array.from(container.querySelectorAll('input[required]'));
+    for (const field of fields) {
+        if (!field.checkValidity()) {
+            field.reportValidity();
+            field.focus();
+            return false;
+        }
+    }
+
+    return true;
+}
+
+setupPasswordToggles();
+
+document.querySelectorAll('.next-step-btn').forEach(function (button) {
+    button.addEventListener('click', function () {
+        const currentStep = Number(document.getElementById('currentStepInput').value || 1);
+        if (!validateCurrentStep(currentStep)) {
+            return;
+        }
+        showStep(currentStep + 1);
+    });
+});
+
+document.querySelectorAll('.prev-step-btn').forEach(function (button) {
+    button.addEventListener('click', function () {
+        const currentStep = Number(document.getElementById('currentStepInput').value || 2);
+        showStep(currentStep - 1);
     });
 });
 </script>
