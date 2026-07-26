@@ -177,14 +177,17 @@ $membersList = $membersStmt->fetchAll();
 <?php
 $pageTitle = 'Loan Management - Beulah Coop';
 $useDashboardLayout = true;
-$extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">';
+$extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">'
+    . '<link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet">';
 ?>
 <?php include '../includes/header.php'; ?>
 <div class="dash-grid">
     <div class="dash-section-head">
         <h2 class="dash-title">Loan Management</h2>
         <div class="dash-section-actions">
-            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addLoanModal">New Loan Application</button>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addLoanModal">
+            <i class="ph-bold ph-plus me-1"></i>New Loan Application
+        </button>
         </div>
     </div>
 
@@ -399,11 +402,18 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 const loansTable = $('#loansTable').DataTable({
     searching: true,
     pageLength: 25,
-    dom: '<"dt-top"lf>rt<"dt-bottom"ip>'
+    dom: '<"dt-top"lfB>rt<"dt-bottom"ip>',
+    buttons: [
+        { extend: 'csvHtml5', className: 'btn btn-outline-primary btn-sm', text: '<i class="ph-bold ph-file-csv me-1"></i>Export CSV' }
+    ]
 });
 
 function showLoanAlert(message, type) {

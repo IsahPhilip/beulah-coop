@@ -99,35 +99,30 @@ $memberStats = $memberStatsStmt->fetch();
         <h2 class="dash-title">Reports & Analytics</h2>
         <div class="dash-section-actions">
             <button class="btn btn-outline-primary" onclick="exportReport('pdf')">
-                <i class="bi bi-filetype-pdf me-1"></i>Export PDF
+                <i class="ph-bold ph-file-pdf me-1"></i>Export PDF
             </button>
             <button class="btn btn-outline-primary" onclick="exportReport('excel')">
-                <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+                <i class="ph-bold ph-file-xls me-1"></i>Export Excel
             </button>
         </div>
     </div>
 
-    <!-- Date Range Filter -->
-    <div class="dash-panel">
-        <div class="dash-panel-title">Filter by Date Range</div>
-        <div class="p-3">
-            <form method="GET" class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label">From Date</label>
-                    <input type="date" name="date_from" class="form-control" value="<?= htmlspecialchars($dateFrom) ?>">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">To Date</label>
-                    <input type="date" name="date_to" class="form-control" value="<?= htmlspecialchars($dateTo) ?>">
-                </div>
-                <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-funnel me-1"></i>Apply Filter
-                    </button>
-                </div>
-            </form>
+    <form method="GET">
+        <div class="dash-filters">
+            <div class="dash-filter-group">
+                <label><i class="ph-bold ph-calendar-blank"></i> From</label>
+                <input type="date" name="date_from" class="form-control" value="<?= htmlspecialchars($dateFrom) ?>">
+            </div>
+            <div class="dash-filter-group">
+                <label><i class="ph-bold ph-calendar-check"></i> To</label>
+                <input type="date" name="date_to" class="form-control" value="<?= htmlspecialchars($dateTo) ?>">
+            </div>
+            <div class="dash-filter-actions">
+                <button type="submit" class="btn-filter-apply"><i class="ph-bold ph-funnel"></i> Apply</button>
+                <a href="reports.php" class="btn-filter-clear"><i class="ph-bold ph-x"></i> Clear</a>
+            </div>
         </div>
-    </div>
+    </form>
 
     <!-- Financial Summary Cards -->
     <div class="dash-cards">
@@ -318,7 +313,6 @@ new Chart(loanCtx, {
 $('#topSaversTable').DataTable({
     searching: false,
     pageLength: 10,
-    info: false,
     dom: 'rt<"dt-bottom"ip>'
 });
 

@@ -69,14 +69,18 @@ foreach ($loans as $loan) {
 <?php
 $pageTitle = 'My Loans - Beulah Coop';
 $useDashboardLayout = true;
+$extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">'
+    . '<link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet">';
 ?>
 <?php include '../includes/header.php'; ?>
 <div class="dash-grid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="dash-section-head">
         <h2 class="dash-title">My Loan History</h2>
-        <a href="apply-loan.php" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Apply for Loan
-        </a>
+        <div class="dash-section-actions">
+            <a href="apply-loan.php" class="btn btn-primary">
+                <i class="ph-bold ph-plus-circle me-1"></i>Apply for Loan
+            </a>
+        </div>
     </div>
 
     <!-- Loan Summary Cards -->
@@ -106,11 +110,11 @@ $useDashboardLayout = true;
     <?php if (empty($loans)): ?>
         <div class="dash-panel">
             <div class="text-center py-5">
-                <i class="bi bi-wallet2" style="font-size: 4rem; color: #ccc;"></i>
+                <i class="ph-bold ph-wallet" style="font-size: 4rem; color: #ccc;"></i>
                 <h4 class="mt-3 text-muted">No Loan Applications Yet</h4>
                 <p class="text-muted">You haven't applied for any loans. When you do, they'll appear here.</p>
                 <a href="apply-loan.php" class="btn btn-primary mt-2">
-                    <i class="bi bi-plus-circle"></i> Apply for Your First Loan
+                    <i class="ph-bold ph-plus-circle me-1"></i>Apply for Your First Loan
                 </a>
             </div>
         </div>
@@ -118,10 +122,10 @@ $useDashboardLayout = true;
         <!-- Loan Applications List -->
         <div class="dash-panel">
             <div class="dash-panel-title">
-                <i class="bi bi-list-ul me-2"></i>Loan Applications
+                <i class="ph-bold ph-list-bullets me-2"></i>Loan Applications
             </div>
             <div class="table-responsive">
-                <table class="table table-hover">
+                <table id="loansTable" class="table table-hover">
                     <thead>
                         <tr>
                             <th>Date Applied</th>
@@ -136,7 +140,7 @@ $useDashboardLayout = true;
                         <?php foreach ($loans as $loan): ?>
                             <tr>
                                 <td><?= date('d M Y', strtotime($loan['applied_at'])) ?></td>
-                                <td><strong><?= format_money($loan['amount']) ?></strong></td>
+                        <td><strong><?= format_money($loan['amount']) ?></strong></td>
                                 <td><?= $loan['duration_months'] ?> months</td>
                                 <td>
                                     <?= $loan['interest_rate'] > 0 
@@ -144,22 +148,25 @@ $useDashboardLayout = true;
                                         : '<span class="text-muted">Pending</span>' ?>
                                 </td>
                                 <td>
-                                    <span class="badge bg-<?= 
-                                        $loan['status'] === 'pending' ? 'warning' : 
-                                        ($loan['status'] === 'approved' ? 'info' : 
-                                        ($loan['status'] === 'disbursed' ? 'primary' : 
-                                        ($loan['status'] === 'rejected' ? 'danger' : 
-                                        ($loan['status'] === 'defaulted' ? 'danger' : 'success')))) 
-                                    ?> fs-6">
-                                        <?= ucfirst($loan['status']) ?>
-                                    </span>
+                                    <?php
+                                    $loanStatusMap = [
+                                        'pending'   => 'badge-interest',
+                                        'approved'  => 'badge-repay',
+                                        'disbursed' => 'badge-loan',
+                                        'rejected'  => 'badge-debit',
+                                        'defaulted' => 'badge-debit',
+                                        'completed' => 'badge-savings',
+                                    ];
+                                    $lsCls = $loanStatusMap[$loan['status']] ?? 'bg-primary-soft';
+                                    ?>
+                                    <span class="badge <?= $lsCls ?>"><?= ucfirst($loan['status']) ?></span>
                                 </td>
                                 <td>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                    <button type="button" class="btn-icon btn-icon-view" 
                                             data-bs-toggle="modal" 
                                             data-bs-target="#loanDetailsModal"
-                                            onclick="showLoanDetails(<?= $loan['id'] ?>)">
-                                        <i class="bi bi-eye"></i> Details
+                                            onclick="showLoanDetails(<?= $loan['id'] ?>)" title="View Details">
+                                        <i class="ph-bold ph-eye"></i>
                                     </button>
                                 </td>
                             </tr>
@@ -186,7 +193,7 @@ $useDashboardLayout = true;
                 ?>
                 <div class="dash-panel mt-4">
                     <div class="dash-panel-title d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-calendar-check me-2"></i>Repayment Schedule - Loan #<?= $loanId ?></span>
+                        <span><i class="ph-bold ph-calendar-check me-2"></i>Repayment Schedule - Loan #<?= $loanId ?></span>
                         <span class="badge bg-primary"><?= format_money($loan['amount']) ?></span>
                     </div>
                     
@@ -229,11 +236,15 @@ $useDashboardLayout = true;
                                         <td><strong><?= format_money($schedule['total_amount']) ?></strong></td>
                                         <td><?= $schedule['paid_amount'] > 0 ? format_money($schedule['paid_amount']) : '-' ?></td>
                                         <td>
-                                            <span class="badge bg-<?= 
-                                                $schedule['status'] === 'paid' ? 'success' : 
-                                                ($schedule['status'] === 'overdue' ? 'danger' : 
-                                                ($schedule['status'] === 'partial' ? 'warning' : 'secondary')) 
-                                            ?>">
+                                    <?php
+                                    $schStatusMap = [
+                                        'paid'    => 'badge-savings',
+                                        'overdue' => 'badge-debit',
+                                        'partial' => 'badge-interest',
+                                    ];
+                                    $schCls = $schStatusMap[$schedule['status']] ?? 'bg-primary-soft';
+                                    ?>
+                                            <span class="badge <?= $schCls ?>">
                                                 <?= ucfirst($schedule['status']) ?>
                                             </span>
                                         </td>
@@ -266,8 +277,23 @@ $useDashboardLayout = true;
     </div>
 </div>
 
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 <script>
 const loansData = <?= json_encode($loans, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+
+$(document).ready(function() {
+    if ($('#loansTable').length) {
+        $('#loansTable').DataTable({
+            searching: false,
+            pageLength: 25,
+            dom: 'rt<"dt-bottom"ip>',
+            order: [[0, 'desc']]
+        });
+    }
+});
+
 
 function showLoanDetails(loanId) {
     const loan = loansData.find(l => l.id == loanId);

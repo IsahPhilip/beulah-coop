@@ -52,7 +52,8 @@ $member = $memberStmt->fetch();
 
 $pageTitle = 'My Transactions - Beulah Coop';
 $useDashboardLayout = true;
-$extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">';
+$extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">'
+    . '<link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet">';
 ?>
 <?php include '../includes/header.php'; ?>
 <div class="dash-grid">
@@ -60,32 +61,28 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
         <h2 class="dash-title">My Transactions</h2>
         <div class="dash-section-actions">
             <button class="btn btn-outline-primary" onclick="exportCSV()">
-                <i class="bi bi-download me-1"></i>Export CSV
+                <i class="ph-bold ph-download-simple me-1"></i>Export CSV
             </button>
         </div>
     </div>
 
     <!-- Date Range Filter -->
-    <div class="dash-panel">
-        <div class="dash-panel-title">Filter by Date Range</div>
-        <div class="p-3">
-            <form method="GET" class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label">From Date</label>
-                    <input type="date" name="date_from" class="form-control" value="<?= htmlspecialchars($dateFrom) ?>">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">To Date</label>
-                    <input type="date" name="date_to" class="form-control" value="<?= htmlspecialchars($dateTo) ?>">
-                </div>
-                <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-funnel me-1"></i>Apply Filter
-                    </button>
-                </div>
-            </form>
+    <form method="GET">
+        <div class="dash-filters">
+            <div class="dash-filter-group">
+                <label><i class="ph-bold ph-calendar-blank"></i> From</label>
+                <input type="date" name="date_from" class="form-control" value="<?= htmlspecialchars($dateFrom) ?>">
+            </div>
+            <div class="dash-filter-group">
+                <label><i class="ph-bold ph-calendar-check"></i> To</label>
+                <input type="date" name="date_to" class="form-control" value="<?= htmlspecialchars($dateTo) ?>">
+            </div>
+            <div class="dash-filter-actions">
+                <button type="submit" class="btn-filter-apply"><i class="ph-bold ph-funnel"></i> Apply</button>
+                <a href="transactions.php" class="btn-filter-clear"><i class="ph-bold ph-x"></i> Clear</a>
+            </div>
         </div>
-    </div>
+    </form>
 
     <!-- Summary Cards -->
     <div class="dash-cards">
@@ -113,7 +110,7 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
         <div class="p-3">
             <?php if (empty($transactions)): ?>
                 <div class="text-center text-muted py-5">
-                    <i class="bi bi-receipt" style="font-size: 3rem;"></i>
+                    <i class="ph-bold ph-receipt" style="font-size: 3rem;"></i>
                     <p class="mt-3">No transactions found for the selected period.</p>
                 </div>
             <?php else: ?>
@@ -131,16 +128,16 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                         <?php foreach ($transactions as $t): ?>
                             <tr>
                                 <td><?= date('d M Y', strtotime($t['trans_date'])) ?></td>
-                                <td>
-                                    <span class="badge bg-<?= 
-                                        $t['type'] === 'savings_credit' ? 'success' : 
-                                        ($t['type'] === 'loan_disbursed' ? 'primary' : 
-                                        ($t['type'] === 'loan_repayment' ? 'info' : 'warning')) 
+                        <td>
+                                <span class="badge <?= 
+                                        $t['type'] === 'savings_credit' ? 'badge-savings' : 
+                                        ($t['type'] === 'loan_disbursed' ? 'badge-loan' : 
+                                        ($t['type'] === 'loan_repayment' ? 'badge-repay' : 'badge-interest')) 
                                     ?>">
                                         <?= htmlspecialchars($t['type_label']) ?>
                                     </span>
                                 </td>
-                                <td class="fw-semibold"><?= format_money($t['amount']) ?></td>
+                                <td><span class="tbl-amount <?= str_contains($t['type'],'credit')||str_contains($t['type'],'repayment') ? 'positive' : 'negative' ?>"><?= format_money($t['amount']) ?></span></td>
                                 <td><?= htmlspecialchars($t['description'] ?? '-') ?></td>
                             </tr>
                         <?php endforeach; ?>
@@ -158,6 +155,7 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 $(document).ready(function() {
     <?php if (!empty($transactions)): ?>
@@ -165,7 +163,10 @@ $(document).ready(function() {
         searching: true,
         pageLength: 25,
         order: [[0, 'desc']],
-        dom: '<"dt-top"f>rt<"dt-bottom"ip>'
+        dom: '<"dt-top"lfB>rt<"dt-bottom"ip>',
+        buttons: [
+            { extend: 'csvHtml5', className: 'btn btn-outline-primary btn-sm', text: '<i class="ph-bold ph-file-csv me-1"></i>Export CSV' }
+        ]
     });
     <?php endif; ?>
 });

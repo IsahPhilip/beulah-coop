@@ -34,7 +34,7 @@ $useDashboardLayout = true;
         <div class="p-3">
             <?php if (empty($announcements)): ?>
                 <div class="text-center text-muted py-5">
-                    <i class="bi bi-megaphone" style="font-size: 3rem;"></i>
+                    <i class="ph-bold ph-megaphone" style="font-size: 3rem;"></i>
                     <p class="mt-3">No announcements at this time.</p>
                 </div>
             <?php else: ?>
@@ -55,10 +55,10 @@ $useDashboardLayout = true;
                                     </div>
                                     <div class="announcement-body mb-3" style="white-space: pre-wrap;"><?= nl2br(htmlspecialchars($announcement['content'])) ?></div>
                                     <div class="d-flex gap-3 small text-muted">
-                                        <span><i class="bi bi-person me-1"></i><?= htmlspecialchars($announcement['creator_name']) ?></span>
-                                        <span><i class="bi bi-clock me-1"></i><?= date('d M Y, H:i', strtotime($announcement['created_at'])) ?></span>
+                                        <span><i class="ph-bold ph-user me-1"></i><?= htmlspecialchars($announcement['creator_name']) ?></span>
+                                        <span><i class="ph-bold ph-clock me-1"></i><?= date('d M Y, H:i', strtotime($announcement['created_at'])) ?></span>
                                         <?php if ($announcement['expires_at']): ?>
-                                            <span><i class="bi bi-calendar-x me-1"></i>Expires: <?= date('d M Y', strtotime($announcement['expires_at'])) ?></span>
+                                            <span><i class="ph-bold ph-calendar-x me-1"></i>Expires: <?= date('d M Y', strtotime($announcement['expires_at'])) ?></span>
                                         <?php endif; ?>
                                     </div>
                                 </div>

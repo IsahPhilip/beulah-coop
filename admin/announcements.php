@@ -108,7 +108,9 @@ $useDashboardLayout = true;
     <div class="dash-section-head">
         <h2 class="dash-title">Announcements</h2>
         <div class="dash-section-actions">
-            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addAnnouncementModal">New Announcement</button>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addAnnouncementModal">
+            <i class="ph-bold ph-megaphone me-1"></i>New Announcement
+        </button>
         </div>
     </div>
 
@@ -154,7 +156,7 @@ $useDashboardLayout = true;
         <div class="p-3">
             <?php if (empty($announcements)): ?>
                 <div class="text-center text-muted py-5">
-                    <i class="bi bi-megaphone" style="font-size: 3rem;"></i>
+                    <i class="ph-bold ph-megaphone" style="font-size: 3rem;"></i>
                     <p class="mt-3">No announcements yet. Create your first announcement!</p>
                 </div>
             <?php else: ?>
@@ -176,18 +178,18 @@ $useDashboardLayout = true;
                                     </div>
                                     <p class="text-muted mb-2"><?= htmlspecialchars(substr($announcement['content'], 0, 150)) ?>...</p>
                                     <div class="d-flex gap-3 small text-muted">
-                                        <span><i class="bi bi-person me-1"></i><?= htmlspecialchars($announcement['creator_name']) ?></span>
-                                        <span><i class="bi bi-clock me-1"></i><?= date('d M Y, H:i', strtotime($announcement['created_at'])) ?></span>
-                                        <span><i class="bi bi-people me-1"></i><?= ucfirst($announcement['target_audience']) ?></span>
+                                        <span><i class="ph-bold ph-user me-1"></i><?= htmlspecialchars($announcement['creator_name']) ?></span>
+                                        <span><i class="ph-bold ph-clock me-1"></i><?= date('d M Y, H:i', strtotime($announcement['created_at'])) ?></span>
+                                        <span><i class="ph-bold ph-users me-1"></i><?= ucfirst($announcement['target_audience']) ?></span>
                                         <?php if ($announcement['expires_at']): ?>
-                                            <span><i class="bi bi-calendar-x me-1"></i>Expires: <?= date('d M Y', strtotime($announcement['expires_at'])) ?></span>
+                                            <span><i class="ph-bold ph-calendar-x me-1"></i>Expires: <?= date('d M Y', strtotime($announcement['expires_at'])) ?></span>
                                         <?php endif; ?>
-                                        <span><i class="bi bi-bell me-1"></i><?= $announcement['notification_count'] ?> notified</span>
+                                        <span><i class="ph-bold ph-bell me-1"></i><?= $announcement['notification_count'] ?> notified</span>
                                     </div>
                                 </div>
                                 <div class="dropdown">
                                     <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown">
-                                        <i class="bi bi-three-dots-vertical"></i>
+                                        <i class="ph-bold ph-dots-three-vertical"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li>
@@ -195,13 +197,13 @@ $useDashboardLayout = true;
                                                 <input type="hidden" name="action" value="toggle">
                                                 <input type="hidden" name="id" value="<?= $announcement['id'] ?>">
                                                 <button type="submit" class="dropdown-item">
-                                                    <i class="bi bi-toggle-on me-2"></i><?= $announcement['is_active'] ? 'Deactivate' : 'Activate' ?>
+                                                    <i class="ph-bold ph-toggle-right me-2"></i><?= $announcement['is_active'] ? 'Deactivate' : 'Activate' ?>
                                                 </button>
                                             </form>
                                         </li>
                                         <li>
                                             <button class="dropdown-item" onclick="viewAnnouncement(<?= $announcement['id'] ?>)">
-                                                <i class="bi bi-eye me-2"></i>View Full
+                                                <i class="ph-bold ph-eye me-2"></i>View Full
                                             </button>
                                         </li>
                                         <li><hr class="dropdown-divider"></li>
@@ -210,7 +212,7 @@ $useDashboardLayout = true;
                                                 <input type="hidden" name="action" value="delete">
                                                 <input type="hidden" name="id" value="<?= $announcement['id'] ?>">
                                                 <button type="submit" class="dropdown-item text-danger">
-                                                    <i class="bi bi-trash me-2"></i>Delete
+                                                    <i class="ph-bold ph-trash me-2"></i>Delete
                                                 </button>
                                             </form>
                                         </li>
@@ -271,7 +273,7 @@ $useDashboardLayout = true;
                     </div>
                     <div class="mt-3 d-flex justify-content-end">
                         <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-megaphone me-1"></i>Publish Announcement
+                            <i class="ph-bold ph-megaphone me-1"></i>Publish Announcement
                         </button>
                     </div>
                 </form>
