@@ -34,6 +34,7 @@ try {
 $error       = '';
 $successMsg  = '';
 $emailSentTo = '';  // set after a successful send
+$canEnterOtp = !empty($_SESSION['password_reset_pending'] ?? []);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email   = trim($_POST['email']   ?? '');
@@ -52,6 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$user) {
                 $error = 'No account found with that Coop No. and email combination.';
             } else {
+                unset($_SESSION['password_reset_pending']);
+
                 // Invalidate any previous unused tokens for this user
                 $pdo->prepare("DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL")
                     ->execute([$user['id']]);
@@ -210,8 +213,16 @@ TEXT;
                 }
 
                 if ($emailSent) {
+                    $_SESSION['password_reset_pending'] = [
+                        'user_id' => $user['id'],
+                        'token' => $token,
+                        'otp_code' => $otp,
+                        'expires_at' => $expiresAt,
+                    ];
+                    $canEnterOtp = true;
                     $successMsg = 'Reset instructions have been sent to ' . htmlspecialchars($user['email']) . '.';
                 } else {
+                    unset($_SESSION['password_reset_pending']);
                     $error = 'We could not send the reset email right now. Please try again later or contact the administrator.';
                     // Roll back the token so it cannot be used
                     $pdo->prepare("DELETE FROM password_reset_tokens WHERE token = ?")->execute([$token]);
@@ -285,8 +296,10 @@ TEXT;
                     <button type="submit" class="btn btn-primary w-100">Send Reset Instructions</button>
                     <div class="auth-footer mt-3 text-center">
                         <a href="login.php" class="text-decoration-none">Back to Login</a>
-                        <span class="mx-2 text-muted">·</span>
-                        <a href="verify-otp.php" class="text-decoration-none">Enter OTP</a>
+                        <?php if ($canEnterOtp): ?>
+                            <span class="mx-2 text-muted">·</span>
+                            <a href="verify-otp.php" class="text-decoration-none">Enter OTP</a>
+                        <?php endif; ?>
                     </div>
                 </form>
             <?php endif; ?>

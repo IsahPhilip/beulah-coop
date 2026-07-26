@@ -70,24 +70,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $selectTwofa = $twofaColumn ? ", {$twofaColumn} AS twofa_enabled" : "";
             $selectStatus = table_has_column($pdo, 'users', 'status') ? ', status' : '';
             $selectPasswordReset = table_has_column($pdo, 'users', 'password_reset_required') ? ', password_reset_required' : '';
-            $stmt = $pdo->prepare("SELECT id, coop_no, name, {$passwordColumn}, role, email{$selectTwofa}{$selectStatus}{$selectPasswordReset} FROM users WHERE coop_no = ?");
-            $stmt->execute([$coop_no]);
+            $selectRegStatus = table_has_column($pdo, 'users', 'registration_status') ? ', registration_status' : '';
+            $stmt = $pdo->prepare("SELECT id, coop_no, name, {$passwordColumn}, role, email{$selectTwofa}{$selectStatus}{$selectPasswordReset}{$selectRegStatus} FROM users WHERE coop_no = ? OR email = ?");
+            $stmt->execute([$coop_no, $coop_no]);
             $user = $stmt->fetch();
 
             if (!$user) {
-                $error = "Invalid Coop No. or Password.";
+                $error = "Invalid credentials.";
             } elseif (!password_verify($password, $user[$passwordColumn])) {
-                $error = "Invalid Coop No. or Password.";
-            } elseif ($user['role'] !== 'admin' && isset($user['status']) && $user['status'] !== 'approved') {
-                if ($user['status'] === 'pending') {
-                    $error = "Your registration is pending. Please upload your payment receipt so the admin can verify it.";
-                } elseif ($user['status'] === 'receipt_submitted') {
-                    $error = "Your receipt has been submitted and is awaiting admin verification.";
-                } elseif ($user['status'] === 'rejected') {
-                    $error = "Your registration has been rejected. Please contact the admin for details.";
-                } else {
-                    $error = "Your account is not approved yet. Please wait for admin verification.";
-                }
+                $error = "Invalid credentials.";
+            } elseif ($user['role'] !== 'admin' && ($user['registration_status'] ?? 'active') === 'unverified') {
+                $error = "Please verify your email address before logging in. Check your inbox for the verification link.";
+            } elseif ($user['role'] !== 'admin' && ($user['registration_status'] ?? 'active') === 'pending') {
+                // Allow login — member will see the pending banner on dashboard
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['coop_no'] = $user['coop_no'] ?? '';
+                $_SESSION['name']    = $user['name'];
+                $_SESSION['role']    = $user['role'];
+                $_SESSION['registration_status'] = 'pending';
+                $_SESSION['last_activity'] = time();
+                log_audit($pdo, $user['id'], 'login_success', 'Login — registration pending');
+                header("Location: ../member/dashboard.php");
+                exit();
             } else {
                 // User authenticated successfully
                 $_SESSION['last_activity'] = time();
@@ -108,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['coop_no'] = $user['coop_no'];
                     $_SESSION['name'] = $user['name'];
                     $_SESSION['role'] = $user['role'];
+                    $_SESSION['registration_status'] = $user['registration_status'] ?? 'active';
                     $_SESSION['last_activity'] = time();
 
                     log_audit($pdo, $user['id'], 'login_success', 'Login without 2FA');
@@ -224,15 +229,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php if ($error): ?>
                 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
+            <?php if (($_GET['msg'] ?? '') === 'unverified'): ?>
+                <div class="alert alert-warning"><i class="ph-bold ph-envelope me-2"></i>Please verify your email before logging in.</div>
+            <?php elseif (($_GET['msg'] ?? '') === 'timeout'): ?>
+                <div class="alert alert-warning">Your session expired. Please log in again.</div>
+            <?php endif; ?>
 
             <form method="POST" action="">
                 <div class="mb-3">
-                    <label class="form-label">Coop No. (e.g. BC01)</label>
+                    <label class="form-label">Coop No. or Email</label>
                     <input type="text" name="coop_no" class="form-control" required autofocus>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Password</label>
-                    <input type="password" name="password" class="form-control" required>
+                    <div class="password-field">
+                        <input type="password" name="password" class="form-control password-toggle-input pe-5" required>
+                        <button type="button" class="password-toggle" aria-label="Show password">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Login</button>
                 <div class="auth-footer d-flex justify-content-between">

@@ -9,6 +9,7 @@ if ($_SESSION['role'] !== 'member') {
 }
 
 $user_id = $_SESSION['user_id'];
+$regStatus = $_SESSION['registration_status'] ?? 'active';
 
 // Check must_change_password
 $mustChange = false;
@@ -16,6 +17,22 @@ if (table_has_column($pdo, 'users', 'must_change_password')) {
     $r = $pdo->prepare("SELECT must_change_password FROM users WHERE id = ?");
     $r->execute([$user_id]);
     $mustChange = (bool)($r->fetchColumn());
+}
+
+// If pending, only show the banner — skip heavy queries
+if ($regStatus === 'pending') {
+    $pageTitle = 'My Dashboard - Beulah Coop';
+    $useDashboardLayout = true;
+    include '../includes/header.php';
+    echo '<div class="dash-grid">';
+    echo '<div class="pwd-change-banner" style="background:linear-gradient(135deg,#EFF6FF 0%,#DBEAFE 100%);border-color:#93C5FD;">';
+    echo '<div class="pwd-change-banner-icon" style="background:#DBEAFE;color:#2563EB;"><i class="ph-bold ph-clock"></i></div>';
+    echo '<div class="pwd-change-banner-body">';
+    echo '<div class="pwd-change-banner-title" style="color:#1E40AF;">Registration Fee Pending</div>';
+    echo '<p class="pwd-change-banner-text" style="color:#1D4ED8;">Your account is awaiting activation. Please pay the <strong>₦2,000 registration fee</strong> to the cooperative and inform the admin. Your account will be activated once payment is confirmed.</p>';
+    echo '</div></div></div>';
+    include '../includes/footer.php';
+    exit();
 }
 
 // Get current balances

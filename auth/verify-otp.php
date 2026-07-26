@@ -9,6 +9,30 @@ require_once '../config/db.php';
 require_once '../includes/functions.php';
 
 $error = '';
+$pendingOtp = $_SESSION['password_reset_pending'] ?? null;
+
+if (empty($pendingOtp)) {
+    header('Location: forgot-password.php');
+    exit;
+}
+
+try {
+    $stmt = $pdo->prepare(
+        "SELECT token FROM password_reset_tokens WHERE token = ? AND otp_code = ? AND used_at IS NULL AND expires_at > NOW() LIMIT 1"
+    );
+    $stmt->execute([$pendingOtp['token'] ?? '', $pendingOtp['otp_code'] ?? '']);
+    $activeOtpRow = $stmt->fetch();
+
+    if (!$activeOtpRow) {
+        unset($_SESSION['password_reset_pending']);
+        header('Location: forgot-password.php');
+        exit;
+    }
+} catch (PDOException $e) {
+    $error = env('APP_DEBUG', false)
+        ? 'Database error: ' . htmlspecialchars($e->getMessage())
+        : 'An error occurred. Please try again.';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Normalise: strip spaces so users can enter "123 456"
@@ -30,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $row = $stmt->fetch();
 
             if ($row) {
+                unset($_SESSION['password_reset_pending']);
                 // OTP is valid — redirect to the reset-password page
                 header('Location: reset-password.php?token=' . urlencode($row['token']));
                 exit;

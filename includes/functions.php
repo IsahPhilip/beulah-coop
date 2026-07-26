@@ -228,4 +228,28 @@ function set_app_timezone() {
 
 // Set timezone on function load
 set_app_timezone();
+
+/**
+ * Load all coop settings from DB into an associative array.
+ * Falls back gracefully if the settings table doesn't exist yet.
+ */
+function get_settings(PDO $pdo): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    try {
+        $rows = $pdo->query("SELECT `key`, `value` FROM settings")->fetchAll(PDO::FETCH_KEY_PAIR);
+        $cache = $rows ?: [];
+    } catch (Throwable $e) {
+        $cache = [];
+    }
+    return $cache;
+}
+
+/**
+ * Get a single setting value with optional default.
+ */
+function setting(PDO $pdo, string $key, string $default = ''): string {
+    $settings = get_settings($pdo);
+    return $settings[$key] ?? $default;
+}
 ?>

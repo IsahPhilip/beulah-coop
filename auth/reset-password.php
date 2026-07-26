@@ -190,14 +190,30 @@ if (empty($token)) {
                         
                         <div class="mb-3">
                             <label class="form-label">New Password</label>
-                            <input type="password" name="new_password" class="form-control" 
-                                   required minlength="<?= get_password_min_length() ?>" autofocus>
+                            <div class="password-field">
+                                <input type="password" name="new_password" class="form-control password-toggle-input pe-5" 
+                                       required minlength="<?= get_password_min_length() ?>" autofocus>
+                                <button type="button" class="password-toggle" aria-label="Show password">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                            </div>
                             <div class="form-text">Minimum <?= get_password_min_length() ?> characters</div>
                         </div>
                         
                         <div class="mb-3">
                             <label class="form-label">Confirm New Password</label>
-                            <input type="password" name="confirm_password" class="form-control" required>
+                            <div class="password-field">
+                                <input type="password" name="confirm_password" class="form-control password-toggle-input pe-5" required>
+                                <button type="button" class="password-toggle" aria-label="Show password">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
 
                         <div class="alert alert-info">

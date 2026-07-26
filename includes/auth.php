@@ -51,6 +51,13 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Block unverified accounts — they must verify email before accessing the app
+if (($_SESSION['role'] ?? '') === 'member' && ($_SESSION['registration_status'] ?? 'active') === 'unverified') {
+    session_destroy();
+    header("Location: ../login.php?msg=unverified");
+    exit();
+}
+
 // Inactivity timeout from .env
 $timeout = (int) $sessionLifetime;
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {

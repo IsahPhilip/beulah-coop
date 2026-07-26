@@ -172,6 +172,38 @@ a {
     color: var(--gray-500);
 }
 
+.password-field {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: var(--gray-500);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+}
+
+.password-toggle:hover {
+    color: var(--primary);
+}
+
+.password-toggle:focus {
+    box-shadow: none;
+}
+
+.password-toggle svg {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
 /* Cards */
 .card {
     background: var(--bg-surface);
@@ -751,6 +783,23 @@ a {
     width: 20px;
     text-align: center;
 }
+
+.nav-badge {
+    margin-left: auto;
+    background: #EF4444;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    line-height: 1;
+}
+
 
 .dash-nav-group {
     display: flex;

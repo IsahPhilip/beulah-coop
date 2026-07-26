@@ -50,14 +50,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $autoPass = $password === '';
                 if ($autoPass) $password = substr(bin2hex(random_bytes(6)), 0, 12);
                 $hash = password_hash($password, PASSWORD_BCRYPT);
+                $markPaid = isset($_POST['mark_paid']) && $_POST['mark_paid'] === '1';
+                $regStatus = $markPaid ? 'active' : 'pending';
 
                 if ($hasMustChange) {
-                    $stmt = $pdo->prepare("INSERT INTO users (coop_no, name, email, phone, password_hash, role, must_change_password) VALUES (?, ?, ?, ?, ?, 'member', 1)");
+                    $stmt = $pdo->prepare("INSERT INTO users (coop_no, name, email, phone, password_hash, role, must_change_password, registration_status, email_verified_at, registration_paid_at, registration_confirmed_by) VALUES (?, ?, ?, ?, ?, 'member', 1, ?, NOW(), ?, ?)");
+                    $stmt->execute([$coopNo, $name, $email, $phone, $hash, $regStatus, $markPaid ? date('Y-m-d H:i:s') : null, $markPaid ? $_SESSION['user_id'] : null]);
                 } else {
-                    $stmt = $pdo->prepare("INSERT INTO users (coop_no, name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?, 'member')");
+                    $stmt = $pdo->prepare("INSERT INTO users (coop_no, name, email, phone, password_hash, role, registration_status, email_verified_at, registration_paid_at, registration_confirmed_by) VALUES (?, ?, ?, ?, ?, 'member', ?, NOW(), ?, ?)");
+                    $stmt->execute([$coopNo, $name, $email, $phone, $hash, $regStatus, $markPaid ? date('Y-m-d H:i:s') : null, $markPaid ? $_SESSION['user_id'] : null]);
                 }
-                $stmt->execute([$coopNo, $name, $email, $phone, $hash]);
                 $userId = (int)$pdo->lastInsertId();
+
+                if ($markPaid) {
+                    create_transaction($pdo, $userId, date('Y-m-d'), 'registration_fee', 2000.00, 'Registration fee payment', $_SESSION['user_id']);
+                }
+
                 log_audit($pdo, $_SESSION['user_id'], 'member_created', "Created member {$coopNo}");
                 $success = 'Member added. Temporary password: ' . $password;
                 if ($isAjax) respond_json(['ok' => true, 'message' => $success, 'member' => ['id' => $userId, 'coop_no' => $coopNo, 'name' => $name, 'email' => $email, 'phone' => $phone]]);
@@ -194,6 +202,12 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                                 <a href="transactions.php?user_id=<?= $m['id'] ?>" class="btn-icon btn-icon-view" title="View Transactions">
                                     <i class="ph-bold ph-eye"></i>
                                 </a>
+                                <a href="../api/generate-statement.php?format=pdf&user_id=<?= $m['id'] ?>" class="btn-icon btn-icon-view" title="Download PDF Statement" target="_blank" style="background:#EEF2FF;color:#4F46E5;">
+                                    <i class="ph-bold ph-file-pdf"></i>
+                                </a>
+                                <a href="../api/generate-statement.php?format=excel&user_id=<?= $m['id'] ?>" class="btn-icon btn-icon-view" title="Download Excel Statement" target="_blank" style="background:#F0FDF4;color:#059669;">
+                                    <i class="ph-bold ph-microsoft-excel-logo"></i>
+                                </a>
                                 <button type="button" class="btn-icon btn-icon-edit btn-edit" title="Edit Member">
                                     <i class="ph-bold ph-pencil-simple"></i>
                                 </button>
@@ -240,6 +254,15 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                         <div class="col-12">
                             <label class="form-label">Password <span class="text-muted fw-normal">(leave blank to auto-generate)</span></label>
                             <input type="text" name="password" class="form-control">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="mark_paid" value="1" id="markPaidCheck" checked>
+                                <label class="form-check-label" for="markPaidCheck">
+                                    <strong>Mark ₦2,000 registration fee as paid</strong>
+                                    <span class="text-muted fw-normal d-block" style="font-size:.8rem;">Records a registration_fee transaction and sets account to active immediately.</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
                     <div class="mt-4 d-flex align-items-center justify-content-between">
@@ -336,6 +359,8 @@ document.getElementById('addMemberForm').addEventListener('submit', async functi
     const m = json.member;
     const actionHtml = `<div class="tbl-actions">
         <a href="transactions.php?user_id=${m.id}" class="btn-icon btn-icon-view" title="View Transactions"><i class="ph-bold ph-eye"></i></a>
+        <a href="../api/generate-statement.php?format=pdf&user_id=${m.id}" class="btn-icon btn-icon-view" title="PDF Statement" target="_blank" style="background:#EEF2FF;color:#4F46E5;"><i class="ph-bold ph-file-pdf"></i></a>
+        <a href="../api/generate-statement.php?format=excel&user_id=${m.id}" class="btn-icon btn-icon-view" title="Excel Statement" target="_blank" style="background:#F0FDF4;color:#059669;"><i class="ph-bold ph-microsoft-excel-logo"></i></a>
         <button type="button" class="btn-icon btn-icon-edit btn-edit" title="Edit Member"><i class="ph-bold ph-pencil-simple"></i></button>
         <button type="button" class="btn-icon btn-icon-delete btn-delete" title="Delete Member"><i class="ph-bold ph-trash"></i></button>
     </div>`;

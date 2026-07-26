@@ -1,249 +1,249 @@
 <?php
-/**
- * Registration page for new users
- */
-
+// auth/register.php
 require_once '../includes/env.php';
 require_once '../config/db.php';
 require_once '../includes/functions.php';
+require_once '../vendor/autoload.php';
+
+$sessionName = env('SESSION_NAME', 'beulah_session');
+session_name($sessionName);
+session_start();
+
+if (isset($_SESSION['user_id'])) {
+    header('Location: ../member/dashboard.php'); exit();
+}
 
 $error = '';
 $success = '';
-$uploadConfig = get_receipt_upload_config();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = trim($_POST['name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
-    $password = trim($_POST['password'] ?? '');
-    $confirmPassword = trim($_POST['confirm_password'] ?? '');
-    $coopNo = generate_next_coop_no($pdo);
+    $name     = trim($_POST['name'] ?? '');
+    $email    = trim($_POST['email'] ?? '');
+    $phone    = trim($_POST['phone'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $confirm  = $_POST['confirm_password'] ?? '';
+    $gName    = trim($_POST['guarantor_name'] ?? '');
+    $gPhone   = trim($_POST['guarantor_phone'] ?? '');
+    $gCoopNo  = strtoupper(trim($_POST['guarantor_coop_no'] ?? ''));
 
-    if ($name === '' || $email === '' || $password === '' || $confirmPassword === '') {
-        $error = 'Please complete all required fields.';
-    } elseif ($password !== $confirmPassword) {
-        $error = 'Passwords do not match.';
+    if (!$name || !$email || !$phone || !$password || !$gName || !$gPhone || !$gCoopNo) {
+        $error = 'All fields are required.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Enter a valid email address.';
     } elseif (strlen($password) < get_password_min_length()) {
-        $error = 'Password must be at least ' . get_password_min_length() . ' characters long.';
+        $error = 'Password must be at least ' . get_password_min_length() . ' characters.';
+    } elseif ($password !== $confirm) {
+        $error = 'Passwords do not match.';
     } else {
-        try {
-            $stmt = $pdo->prepare("SELECT id FROM users WHERE coop_no = ? OR email = ?");
-            $stmt->execute([$coopNo, $email]);
-            $existing = $stmt->fetch();
-            if ($existing) {
-                $error = 'A user with that Coop No. or email already exists.';
+        // Check email uniqueness
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        if ($stmt->fetch()) {
+            $error = 'An account with this email already exists.';
+        } else {
+            // Validate guarantor is an existing active member
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE coop_no = ? AND role = 'member' AND registration_status = 'active'");
+            $stmt->execute([$gCoopNo]);
+            if (!$stmt->fetch()) {
+                $error = 'Guarantor Coop No. not found or is not an active member.';
             } else {
-                $receiptPath = null;
-                if (isset($_FILES['receipt']) && $_FILES['receipt']['error'] !== UPLOAD_ERR_NO_FILE) {
-                    if ($_FILES['receipt']['error'] !== UPLOAD_ERR_OK) {
-                        $error = 'There was a problem uploading the receipt file.';
+                $token = bin2hex(random_bytes(32));
+                $hash  = password_hash($password, PASSWORD_BCRYPT);
+
+                $pdo->beginTransaction();
+                try {
+                    $stmt = $pdo->prepare("
+                        INSERT INTO users (name, email, phone, password_hash, role, registration_status, email_verify_token, must_change_password)
+                        VALUES (?, ?, ?, ?, 'member', 'unverified', ?, 0)
+                    ");
+                    $stmt->execute([$name, $email, $phone, $hash, $token]);
+                    $userId = (int)$pdo->lastInsertId();
+
+                    $stmt = $pdo->prepare("INSERT INTO guarantors (user_id, name, phone, coop_no) VALUES (?, ?, ?, ?)");
+                    $stmt->execute([$userId, $gName, $gPhone, $gCoopNo]);
+
+                    // Send verification email
+                    $verifyUrl = rtrim(env('APP_URL', 'http://localhost/codes/beulah-coop'), '/') . '/auth/verify-email.php?token=' . $token;
+
+                    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+                    $mail->isSMTP();
+                    $mail->Host       = env('MAIL_HOST', 'smtp.gmail.com');
+                    $mail->SMTPAuth   = true;
+                    $mail->Username   = env('MAIL_USERNAME', '');
+                    $mail->Password   = env('MAIL_PASSWORD', '');
+                    $mail->SMTPSecure = env('MAIL_ENCRYPTION', 'tls');
+                    $mail->Port       = (int)env('MAIL_PORT', 587);
+                    $mail->setFrom(env('MAIL_FROM_ADDRESS', 'no-reply@beulahcoop.local'), env('MAIL_FROM_NAME', 'Beulah Coop'));
+                    $mail->addAddress($email, $name);
+                    $mail->isHTML(true);
+                    $mail->Subject = 'Verify your Beulah Coop email';
+                    $mail->Body    = "
+                        <p>Dear {$name},</p>
+                        <p>Thank you for registering with Beulah Cooperative Society.</p>
+                        <p>Please click the button below to verify your email address:</p>
+                        <p><a href='{$verifyUrl}' style='background:#4F46E5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;'>Verify Email</a></p>
+                        <p>Or copy this link: <a href='{$verifyUrl}'>{$verifyUrl}</a></p>
+                        <p>This link expires in 24 hours.</p>
+                        <p>After verification, your account will be reviewed by the admin and you will be asked to pay the ₦2,000 registration fee to activate your account.</p>
+                        <br><p>— Beulah Cooperative Society</p>
+                    ";
+                    $mail->send();
+
+                    $pdo->commit();
+                    log_audit($pdo, $userId, 'registration_initiated', "Self-registration by {$email}");
+                    $success = 'Registration successful! Please check your email to verify your account.';
+                } catch (Throwable $e) {
+                    $pdo->rollBack();
+                    if (env('APP_DEBUG', false)) {
+                        $error = 'Registration failed: ' . $e->getMessage();
                     } else {
-                        $allowed = $uploadConfig['allowed_types'];
-                        $fileType = strtolower(pathinfo($_FILES['receipt']['name'], PATHINFO_EXTENSION));
-                        if (!in_array($fileType, $allowed, true)) {
-                            $error = 'Receipt file type must be: ' . implode(', ', $allowed) . '.';
-                        } elseif ($_FILES['receipt']['size'] > $uploadConfig['max_size']) {
-                            $error = 'Receipt file is too large. Maximum size is ' . number_format($uploadConfig['max_size'] / 1048576, 2) . ' MB.';
-                        } else {
-                            if (!is_dir(__DIR__ . '/../' . $uploadConfig['receipts_dir'])) {
-                                mkdir(__DIR__ . '/../' . $uploadConfig['receipts_dir'], 0755, true);
-                            }
-                            $safeFileName = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES['receipt']['name']));
-                            $targetPath = $uploadConfig['receipts_dir'] . uniqid('receipt_', true) . '_' . $safeFileName;
-                            if (!move_uploaded_file($_FILES['receipt']['tmp_name'], __DIR__ . '/../' . $targetPath)) {
-                                $error = 'Unable to save receipt upload. Please try again.';
-                            } else {
-                                $receiptPath = $targetPath;
-                            }
-                        }
+                        $error = 'Registration failed. Please try again or contact support.';
                     }
                 }
-
-                if ($error === '') {
-                    $passwordHash = password_hash($password, PASSWORD_BCRYPT);
-                    $insertColumns = ['coop_no', 'name', 'email', 'phone', 'password_hash', 'role'];
-                    $insertValues = [$coopNo, $name, $email, $phone, $passwordHash, 'member'];
-                    $placeholders = '?, ?, ?, ?, ?, ?';
-
-                    if (table_has_column($pdo, 'users', 'status')) {
-                        $insertColumns[] = 'status';
-                        $insertValues[] = $receiptPath ? 'receipt_submitted' : 'pending';
-                        $placeholders .= ', ?';
-                    }
-                    if (table_has_column($pdo, 'users', 'receipt_path')) {
-                        $insertColumns[] = 'receipt_path';
-                        $insertValues[] = $receiptPath;
-                        $placeholders .= ', ?';
-                    }
-
-                    $sql = sprintf(
-                        'INSERT INTO users (%s) VALUES (%s)',
-                        implode(', ', $insertColumns),
-                        $placeholders
-                    );
-
-                    $stmt = $pdo->prepare($sql);
-                    $stmt->execute($insertValues);
-
-                    log_audit($pdo, null, 'user_registered', "New registration requested for {$coopNo}");
-                    $success = 'Registration submitted successfully. Please allow admin to verify your payment receipt.';
-                    if ($receiptPath) {
-                        $success .= ' Receipt has been uploaded.';
-                    }
-                }
-            }
-        } catch (PDOException $e) {
-            if (env('APP_DEBUG', false)) {
-                $error = 'Database error: ' . $e->getMessage();
-            } else {
-                $error = 'Unable to complete registration. Please try again later.';
             }
         }
     }
 }
-
-function normalize_coop_no($value) {
-    $value = (string)$value;
-    $value = str_replace("\xC2\xA0", ' ', $value);
-    $value = trim($value);
-    $value = preg_replace('/\s+/', ' ', $value);
-    return strtoupper($value);
-}
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beulah Coop - Register</title>
+    <title>Register - Beulah Coop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
     <link href="../assets/css/custom.css" rel="stylesheet">
 </head>
 <body class="auth-body">
 <div class="auth-shell">
-    <div class="auth-card">
+    <div class="auth-card" style="max-width:780px;">
         <div class="auth-left">
             <div class="auth-brand">Beulah Coop</div>
-            <div class="auth-tagline">New member registration</div>
-            <div class="auth-badge">Submit payment receipt for approval</div>
+            <div class="auth-tagline">Savings & Loans Management</div>
+            <div class="auth-badge">Member Registration</div>
             <div class="auth-ornament"></div>
         </div>
-        <div class="auth-right">
-            <div class="auth-title">Create your account</div>
-            <div class="auth-subtitle">Complete the registration and upload your N2000 payment receipt.</div>
+        <div class="auth-right" style="overflow-y:auto;max-height:100vh;padding:2rem;">
+            <div class="auth-title">Create Account</div>
+            <div class="auth-subtitle">Join Beulah Cooperative Society</div>
+
+            <?php if ($success): ?>
+                <div class="alert alert-success d-flex align-items-center gap-2">
+                    <i class="ph-bold ph-check-circle"></i>
+                    <?= htmlspecialchars($success) ?>
+                </div>
+                <div class="text-center mt-3">
+                    <a href="login.php" class="btn btn-primary">Back to Login</a>
+                </div>
+            <?php else: ?>
 
             <?php if ($error): ?>
-                <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+                <div class="alert alert-danger d-flex align-items-center gap-2">
+                    <i class="ph-bold ph-warning-circle"></i>
+                    <?= htmlspecialchars($error) ?>
+                </div>
             <?php endif; ?>
-            <?php if ($success): ?>
-                <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
-            <?php endif; ?>
 
-            <form method="POST" action="" enctype="multipart/form-data" id="multiStepForm">
-                <!-- Step 1: Personal Details -->
-                <div class="form-step" id="step1">
-                    <div class="mb-3">
-                        <label class="form-label">Full Name</label>
-                        <input type="text" name="name" class="form-control" required value="<?= htmlspecialchars($_POST['name'] ?? '') ?>">
+            <form method="POST" autocomplete="off">
+                <div class="mb-3 mt-2">
+                    <div class="fw-600 text-primary mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;">
+                        <i class="ph-bold ph-user me-1"></i>Personal Information
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" name="email" class="form-control" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($_POST['name'] ?? '') ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" name="email" class="form-control" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone Number</label>
+                            <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Password</label>
+                            <div class="password-field">
+                                <input type="password" name="password" class="form-control password-toggle-input pe-5" required minlength="<?= get_password_min_length() ?>">
+                                <button type="button" class="password-toggle" aria-label="Show password">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Confirm Password</label>
+                            <div class="password-field">
+                                <input type="password" name="confirm_password" class="form-control password-toggle-input pe-5" required>
+                                <button type="button" class="password-toggle" aria-label="Show password">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Phone</label>
-                        <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>">
-                    </div>
-                    <button type="button" class="btn btn-primary w-100" onclick="nextStep(1)">Next</button>
                 </div>
 
-                <!-- Step 2: Account Information -->
-                <div class="form-step" id="step2" style="display: none;">
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" name="password" id="password" class="form-control" required>
+                <hr class="my-3">
+
+                <div class="mb-3">
+                    <div class="fw-600 text-primary mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;">
+                        <i class="ph-bold ph-shield-check me-1"></i>Guarantor Information
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Confirm Password</label>
-                        <input type="password" name="confirm_password" class="form-control" required>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <button type="button" class="btn btn-outline-secondary" onclick="prevStep(2)">Previous</button>
-                        <button type="button" class="btn btn-primary" onclick="nextStep(2)">Next</button>
+                    <p class="text-muted" style="font-size:.8rem;">Your guarantor must be an existing active member of Beulah Cooperative Society.</p>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Guarantor Full Name</label>
+                            <input type="text" name="guarantor_name" class="form-control" value="<?= htmlspecialchars($_POST['guarantor_name'] ?? '') ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Guarantor Phone</label>
+                            <input type="text" name="guarantor_phone" class="form-control" value="<?= htmlspecialchars($_POST['guarantor_phone'] ?? '') ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Guarantor Coop No.</label>
+                            <input type="text" name="guarantor_coop_no" class="form-control" placeholder="e.g. BC/001" value="<?= htmlspecialchars($_POST['guarantor_coop_no'] ?? '') ?>" required>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Step 3: Payment -->
-                <div class="form-step" id="step3" style="display: none;">
-                    <div class="mb-3">
-                        <label class="form-label">Upload Receipt (optional)</label>
-                        <input type="file" name="receipt" class="form-control" accept=".jpeg,.jpg,.png,.pdf">
-                        <div class="form-text">Upload proof of N2000 payment. Payment verification is done by admin.</div>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <button type="button" class="btn btn-outline-secondary" onclick="prevStep(3)">Previous</button>
-                        <button type="submit" class="btn btn-primary">Submit Registration</button>
-                    </div>
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="ph-bold ph-user-plus me-1"></i>Register
+                    </button>
                 </div>
-                <div class="auth-footer d-flex justify-content-between mt-3">
-                    <a href="login.php" class="text-decoration-none">Back to login</a>
+                <div class="auth-footer text-center mt-3">
+                    Already have an account? <a href="login.php">Sign in</a>
                 </div>
             </form>
-
-            <script>
-                let currentStep = 1;
-                const form = document.getElementById('multiStepForm');
-
-                function showStep(step) {
-                    document.getElementById('step' + currentStep).style.display = 'none';
-                    document.getElementById('step' + step).style.display = 'block';
-                    currentStep = step;
-                }
-
-                function nextStep(step) {
-                    if (validateStep(step)) {
-                        showStep(step + 1);
-                    }
-                }
-
-                function prevStep(step) {
-                    showStep(step - 1);
-                }
-
-                function validateStep(step) {
-                    let valid = true;
-                    const currentStepFields = form.querySelectorAll('#step' + step + ' [required]');
-
-                    currentStepFields.forEach(field => {
-                        if (!field.value.trim()) {
-                            valid = false;
-                            field.classList.add('is-invalid');
-                        } else {
-                            field.classList.remove('is-invalid');
-                        }
-                    });
-
-                    if (step === 2) {
-                        const password = document.getElementById('password').value;
-                        const confirmPassword = document.querySelector('[name="confirm_password"]').value;
-                        if (password !== confirmPassword) {
-                            valid = false;
-                            alert('Passwords do not match.');
-                            document.getElementById('password').classList.add('is-invalid');
-                            document.querySelector('[name="confirm_password"]').classList.add('is-invalid');
-                        } else {
-                            document.getElementById('password').classList.remove('is-invalid');
-                            document.querySelector('[name="confirm_password"]').classList.remove('is-invalid');
-                        }
-                    }
-
-                    return valid;
-                }
-            </script>
+            <?php endif; ?>
         </div>
     </div>
 </div>
+<script>
+document.querySelectorAll('.password-field').forEach(function (field) {
+    const input = field.querySelector('input');
+    const button = field.querySelector('.password-toggle');
+    if (!input || !button) return;
+
+    button.addEventListener('click', function (event) {
+        event.preventDefault();
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        button.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+        button.innerHTML = isPassword
+            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"></path><path d="M10.58 10.58A3 3 0 0 0 13.42 13.42"></path><path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.8 17.8 0 0 1-4.16 5.01"></path><path d="M6.61 6.61A17.7 17.7 0 0 0 2 12s3.5 7 10 7a10.9 10.9 0 0 0 4.4-.93"></path></svg>'
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+    });
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
