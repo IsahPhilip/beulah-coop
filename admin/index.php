@@ -146,10 +146,25 @@ $useDashboardLayout = true;
                     <?php foreach ($recentTransactions as $tx): ?>
                         <tr>
                             <td><?= htmlspecialchars($tx['trans_date']) ?></td>
-                            <td><?= htmlspecialchars($tx['name']) ?> <small class="text-muted">(<?= htmlspecialchars($tx['coop_no']) ?>)</small></td>
-                            <td><span class="badge bg-<?= transactionBadgeClass($tx['type']) ?>"><?= ucwords(str_replace('_', ' ', $tx['type'])) ?></span></td>
-                            <td><?= format_money($tx['amount']) ?></td>
-                            <td><?= htmlspecialchars($tx['description'] ?? '-') ?></td>
+                            <td>
+                                <div class="tbl-name"><?= htmlspecialchars($tx['name']) ?></div>
+                                <span class="tbl-coop-chip"><?= htmlspecialchars($tx['coop_no']) ?></span>
+                            </td>
+                            <td>
+                                <?php
+                                $typeMap = [
+                                    'savings_credit'   => 'badge-savings',
+                                    'savings_debit'    => 'badge-debit',
+                                    'loan_disbursed'   => 'badge-loan',
+                                    'loan_repayment'   => 'badge-repay',
+                                    'interest_charged' => 'badge-interest',
+                                ];
+                                $cls = $typeMap[$tx['type']] ?? 'bg-primary-soft';
+                                ?>
+                                <span class="badge <?= $cls ?>"><?= ucwords(str_replace('_', ' ', $tx['type'])) ?></span>
+                            </td>
+                            <td><span class="tbl-amount <?= str_contains($tx['type'],'credit')||str_contains($tx['type'],'repayment') ? 'positive' : 'negative' ?>"><?= format_money($tx['amount']) ?></span></td>
+                            <td class="tbl-sub"><?= htmlspecialchars($tx['description'] ?? '—') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

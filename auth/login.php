@@ -69,7 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $selectTwofa = $twofaColumn ? ", {$twofaColumn} AS twofa_enabled" : "";
             $selectStatus = table_has_column($pdo, 'users', 'status') ? ', status' : '';
-            $stmt = $pdo->prepare("SELECT id, coop_no, name, {$passwordColumn}, role, email{$selectTwofa}{$selectStatus} FROM users WHERE coop_no = ?");
+            $selectPasswordReset = table_has_column($pdo, 'users', 'password_reset_required') ? ', password_reset_required' : '';
+            $stmt = $pdo->prepare("SELECT id, coop_no, name, {$passwordColumn}, role, email{$selectTwofa}{$selectStatus}{$selectPasswordReset} FROM users WHERE coop_no = ?");
             $stmt->execute([$coop_no]);
             $user = $stmt->fetch();
 
@@ -89,6 +90,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 // User authenticated successfully
+                $_SESSION['last_activity'] = time();
+
+                // Check if password reset is required for non-admin users.
+                if ($user['role'] !== 'admin' && !empty($user['password_reset_required'])) {
+                    $_SESSION['force_password_reset_user_id'] = $user['id'];
+                    log_audit($pdo, $user['id'], 'login_force_password_reset', 'Redirecting to force password change.');
+                    header("Location: force_change_password.php");
+                    exit();
+                }
+
                 $twofaEnabled = !empty($user['twofa_enabled']);
 
                 if (!$twofaEnabled) {

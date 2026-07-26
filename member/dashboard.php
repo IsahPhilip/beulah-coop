@@ -2,15 +2,21 @@
 // member/dashboard.php
 require_once '../includes/auth.php';
 if ($_SESSION['role'] === 'admin') {
-    header("Location: ../admin/index.php");
-    exit();
+    header("Location: ../admin/index.php"); exit();
 }
 if ($_SESSION['role'] !== 'member') {
-    header("Location: ../login.php");
-    exit();
+    header("Location: ../login.php"); exit();
 }
 
 $user_id = $_SESSION['user_id'];
+
+// Check must_change_password
+$mustChange = false;
+if (table_has_column($pdo, 'users', 'must_change_password')) {
+    $r = $pdo->prepare("SELECT must_change_password FROM users WHERE id = ?");
+    $r->execute([$user_id]);
+    $mustChange = (bool)($r->fetchColumn());
+}
 
 // Get current balances
 $stmt = $pdo->prepare("
@@ -38,6 +44,16 @@ $useDashboardLayout = true;
 ?>
 <?php include '../includes/header.php'; ?>
 <div class="dash-grid">
+    <?php if ($mustChange): ?>
+    <div class="pwd-change-banner">
+        <div class="pwd-change-banner-icon"><i class="ph-bold ph-lock-key"></i></div>
+        <div class="pwd-change-banner-body">
+            <div class="pwd-change-banner-title">Action Required — Change Your Password</div>
+            <p class="pwd-change-banner-text">You are using a temporary password assigned by the admin. Please change it now to secure your account.</p>
+        </div>
+        <a href="profile.php?tab=security" class="btn"><i class="ph-bold ph-arrow-right me-1"></i>Change Now</a>
+    </div>
+    <?php endif; ?>
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="dash-title">My Savings Overview</h2>
         <div class="dash-pill">Coop No: <?= htmlspecialchars($_SESSION['coop_no']) ?></div>
@@ -66,7 +82,7 @@ $useDashboardLayout = true;
             <div class="dash-panel-title">Savings Growth Over Time</div>
             <div class="mb-3">
                 <a href="transactions.php" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-list-ul me-1"></i>View All Transactions
+                    <i class="ph-bold ph-list-bullets me-1"></i>View All Transactions
                 </a>
             </div>
             <canvas id="savingsChart"></canvas>

@@ -34,7 +34,9 @@ if ($role === 'admin') {
     <title><?= htmlspecialchars($pageTitle) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
     <link href="<?= $basePath ?>/assets/css/custom.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -53,7 +55,7 @@ if ($role === 'admin') {
                 </div>
                 <div class="dash-actions">
                     <button class="dash-hamburger" type="button" aria-label="Toggle menu">
-                        <i class="bi bi-list"></i>
+                        <i class="ph-bold ph-list"></i>
                     </button>
                     <form class="dash-search" method="GET" action="<?= ($role === 'admin') ? $basePath . '/admin/transactions.php' : $basePath . '/member/dashboard.php' ?>">
                         <input type="text" name="search" placeholder="Search transactions..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
@@ -86,31 +88,31 @@ if ($role === 'admin') {
                             <li>
                                 <?php if ($role === 'admin'): ?>
                                     <a class="dropdown-item py-2 px-3" href="<?= $basePath ?>/admin/profile.php">
-                                        <i class="bi bi-person-circle me-2"></i>My Profile
+                                        <i class="ph-bold ph-user-circle me-2"></i>My Profile
                                     </a>
                                 <?php else: ?>
                                     <a class="dropdown-item py-2 px-3" href="<?= $basePath ?>/member/profile.php">
-                                        <i class="bi bi-person-circle me-2"></i>My Profile
+                                        <i class="ph-bold ph-user-circle me-2"></i>My Profile
                                     </a>
                                 <?php endif; ?>
                             </li>
                             <?php if ($role === 'admin'): ?>
                                 <li>
                                     <a class="dropdown-item py-2 px-3" href="<?= $basePath ?>/admin/import.php">
-                                        <i class="bi bi-upload me-2"></i>Import Excel
+                                        <i class="ph-bold ph-upload-simple me-2"></i>Import Excel
                                     </a>
                                 </li>
                             <?php else: ?>
                                 <li>
                                     <a class="dropdown-item py-2 px-3" href="<?= $basePath ?>/member/download-ledger.php">
-                                        <i class="bi bi-filetype-pdf me-2"></i>Download PDF
+                                        <i class="ph-bold ph-file-pdf me-2"></i>Download PDF
                                     </a>
                                 </li>
                             <?php endif; ?>
                             <li><hr class="dropdown-divider my-1"></li>
                             <li>
                                 <a class="dropdown-item py-2 px-3 text-danger" href="<?= $basePath ?>/auth/logout.php">
-                                    <i class="bi bi-box-arrow-right me-2"></i>Logout
+                                    <i class="ph-bold ph-sign-out me-2"></i>Logout
                                 </a>
                             </li>
                         </ul>

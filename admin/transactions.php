@@ -164,7 +164,9 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
     <div class="dash-section-head">
         <h2 class="dash-title">All Transactions <?= $user_filter ? '(Filtered)' : '' ?></h2>
         <div class="dash-section-actions">
-            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addTransactionModal">Add Transaction</button>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addTransactionModal">
+                <i class="ph-bold ph-plus me-1"></i>Add Transaction
+            </button>
         </div>
     </div>
     <div class="dash-cards">
@@ -204,7 +206,7 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                 <input type="date" id="dateTo" class="form-control form-control-sm">
             </div>
             <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
-                <i class="bi bi-x-circle me-1"></i>Clear
+                <i class="ph-bold ph-x-circle me-1"></i>Clear
             </button>
         </div>
         <div class="table-responsive">
@@ -228,13 +230,30 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
                     data-amount="<?= $t['amount'] ?>"
                     data-description="<?= htmlspecialchars($t['description'] ?? '') ?>">
                     <td><?= $t['trans_date'] ?></td>
-                    <td><?= htmlspecialchars($t['name']) ?> (<?= $t['coop_no'] ?>)</td>
-                    <td><?= str_replace('_', ' ', $t['type']) ?></td>
-                    <td><?= format_money($t['amount']) ?></td>
-                    <td><?= htmlspecialchars($t['description'] ?? '') ?></td>
                     <td>
-                        <button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
-                        <button type="button" class="btn btn-sm btn-outline-danger btn-delete">Delete</button>
+                        <div class="tbl-name"><?= htmlspecialchars($t['name']) ?></div>
+                        <div class="tbl-sub"><span class="tbl-coop-chip"><?= htmlspecialchars($t['coop_no']) ?></span></div>
+                    </td>
+                    <td>
+                        <?php
+                        $typeMap = [
+                            'savings_credit'  => ['badge-savings',  'Savings Credit'],
+                            'savings_debit'   => ['badge-debit',    'Savings Debit'],
+                            'loan_disbursed'  => ['badge-loan',     'Loan Disbursed'],
+                            'loan_repayment'  => ['badge-repay',    'Loan Repayment'],
+                            'interest_charged'=> ['badge-interest', 'Interest Charged'],
+                        ];
+                        [$cls, $lbl] = $typeMap[$t['type']] ?? ['bg-primary-soft', ucwords(str_replace('_',' ',$t['type']))];
+                        ?>
+                        <span class="badge <?= $cls ?>"><?= $lbl ?></span>
+                    </td>
+                    <td><span class="tbl-amount <?= str_contains($t['type'],'credit')||str_contains($t['type'],'repayment') ? 'positive' : 'negative' ?>"><?= format_money($t['amount']) ?></span></td>
+                    <td class="tbl-sub"><?= htmlspecialchars($t['description'] ?? '—') ?></td>
+                    <td>
+                        <div class="tbl-actions">
+                            <button type="button" class="btn-icon btn-icon-edit btn-edit" title="Edit"><i class="ph-bold ph-pencil-simple"></i></button>
+                            <button type="button" class="btn-icon btn-icon-delete btn-delete" title="Delete"><i class="ph-bold ph-trash"></i></button>
+                        </div>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -459,12 +478,11 @@ document.getElementById('addTransactionForm').addEventListener('submit', async f
     const t = json.transaction;
     const rowHtml = [
         t.trans_date,
-        t.member_label,
-        t.type_label,
-        '₦' + Number(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        `<div class="tbl-name">${t.member_label.split(' (')[0]}</div><div class="tbl-sub"><span class="tbl-coop-chip">${t.member_label.match(/\(([^)]+)\)/)?.[1]||''}</span></div>`,
+        `<span class="badge badge-${t.type.includes('credit')||t.type.includes('repayment')?'savings':'loan'}">${t.type_label}</span>`,
+        `<span class="tbl-amount ${t.type.includes('credit')||t.type.includes('repayment')?'positive':'negative'}">₦${Number(t.amount).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`,
         t.description || '',
-        `<button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
-         <button type="button" class="btn btn-sm btn-outline-danger btn-delete">Delete</button>`
+        `<div class="tbl-actions"><button type="button" class="btn-icon btn-icon-edit btn-edit" title="Edit"><i class="ph-bold ph-pencil-simple"></i></button><button type="button" class="btn-icon btn-icon-delete btn-delete" title="Delete"><i class="ph-bold ph-trash"></i></button></div>`
     ];
 
     const rowApi = transactionsTable.row.add(rowHtml).draw(false);

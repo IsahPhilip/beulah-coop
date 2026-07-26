@@ -1,19 +1,13 @@
 <?php
-// admin/members.php - Member Management with DataTables
+// admin/members.php
 require_once '../includes/auth.php';
 if ($_SESSION['role'] === 'member') {
-    if (is_ajax_request()) {
-        json_exit(['ok' => false, 'error' => 'Access denied. Admins only.'], 403);
-    }
-    header("Location: ../member/dashboard.php");
-    exit();
+    if (is_ajax_request()) json_exit(['ok' => false, 'error' => 'Access denied.'], 403);
+    header("Location: ../member/dashboard.php"); exit();
 }
 if ($_SESSION['role'] !== 'admin') {
-    if (is_ajax_request()) {
-        json_exit(['ok' => false, 'error' => 'Access denied. Admins only.'], 403);
-    }
-    header("Location: ../login.php");
-    exit();
+    if (is_ajax_request()) json_exit(['ok' => false, 'error' => 'Access denied.'], 403);
+    header("Location: ../login.php"); exit();
 }
 
 function respond_json($payload) {
@@ -23,27 +17,23 @@ function respond_json($payload) {
 }
 
 function normalize_coop_no($value) {
-    $value = (string)$value;
-    $value = str_replace("\xC2\xA0", ' ', $value);
-    $value = trim($value);
-    $value = preg_replace('/\s+/', ' ', $value);
-    return strtoupper($value);
+    $value = str_replace("\xC2\xA0", ' ', (string)$value);
+    return strtoupper(preg_replace('/\s+/', ' ', trim($value)));
 }
 
 $error = '';
 $success = '';
-$hasStatusColumn = table_has_column($pdo, 'users', 'status');
-$hasReceiptColumn = table_has_column($pdo, 'users', 'receipt_path');
+$hasMustChange = table_has_column($pdo, 'users', 'must_change_password');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? null;
     $isAjax = isset($_POST['ajax']) && $_POST['ajax'] === '1';
 
     if ($action === 'add') {
-        $coopNo = normalize_coop_no($_POST['coop_no'] ?? '');
-        $name = trim($_POST['name'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $phone = trim($_POST['phone'] ?? '');
+        $coopNo   = normalize_coop_no($_POST['coop_no'] ?? '');
+        $name     = trim($_POST['name'] ?? '');
+        $email    = trim($_POST['email'] ?? '');
+        $phone    = trim($_POST['phone'] ?? '');
         $password = trim($_POST['password'] ?? '');
 
         if ($coopNo === '' || $name === '') {
@@ -52,174 +42,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $stmt = $pdo->prepare("SELECT id FROM users WHERE coop_no = ?");
             $stmt->execute([$coopNo]);
-            $exists = $stmt->fetch();
-
-            if ($exists) {
+            if ($stmt->fetch()) {
                 $error = 'A member with this Coop No. already exists.';
                 if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
             } else {
-                if ($email === '') {
-                    $email = strtolower(str_replace([' ', '/'], '', $coopNo)) . '@beulahcoop.local';
-                }
-                if ($password === '') {
-                    $password = substr(bin2hex(random_bytes(6)), 0, 12);
-                }
-                $passwordHash = password_hash($password, PASSWORD_BCRYPT);
-                $stmt = $pdo->prepare("
-                    INSERT INTO users (coop_no, name, email, phone, password_hash, role)
-                    VALUES (?, ?, ?, ?, ?, 'member')
-                ");
-                $stmt->execute([$coopNo, $name, $email, $phone, $passwordHash]);
+                if ($email === '') $email = strtolower(str_replace([' ', '/'], '', $coopNo)) . '@beulahcoop.local';
+                $autoPass = $password === '';
+                if ($autoPass) $password = substr(bin2hex(random_bytes(6)), 0, 12);
+                $hash = password_hash($password, PASSWORD_BCRYPT);
 
+                if ($hasMustChange) {
+                    $stmt = $pdo->prepare("INSERT INTO users (coop_no, name, email, phone, password_hash, role, must_change_password) VALUES (?, ?, ?, ?, ?, 'member', 1)");
+                } else {
+                    $stmt = $pdo->prepare("INSERT INTO users (coop_no, name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?, 'member')");
+                }
+                $stmt->execute([$coopNo, $name, $email, $phone, $hash]);
                 $userId = (int)$pdo->lastInsertId();
                 log_audit($pdo, $_SESSION['user_id'], 'member_created', "Created member {$coopNo}");
-                $success = 'Member added successfully. Temporary password: ' . $password;
-
-                if ($isAjax) {
-                    respond_json([
-                        'ok' => true,
-                        'member' => [
-                            'id' => $userId,
-                            'coop_no' => $coopNo,
-                            'name' => $name,
-                            'email' => $email,
-                            'phone' => $phone,
-                            'savings' => 0,
-                            'loan_outstanding' => 0
-                        ],
-                        'message' => $success
-                    ]);
-                }
+                $success = 'Member added. Temporary password: ' . $password;
+                if ($isAjax) respond_json(['ok' => true, 'message' => $success, 'member' => ['id' => $userId, 'coop_no' => $coopNo, 'name' => $name, 'email' => $email, 'phone' => $phone]]);
             }
         }
     } elseif ($action === 'edit') {
-        $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
+        $id    = (int)($_POST['id'] ?? 0);
+        $name  = trim($_POST['name'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
-
         if ($id <= 0 || $name === '') {
-            $error = 'Name is required.';
-            if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
+            if ($isAjax) respond_json(['ok' => false, 'error' => 'Name is required.']);
         } else {
-            $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ?");
-            $stmt->execute([$name, $email, $phone, $id]);
-
+            $pdo->prepare("UPDATE users SET name=?, email=?, phone=? WHERE id=?")->execute([$name, $email, $phone, $id]);
             log_audit($pdo, $_SESSION['user_id'], 'member_updated', "Updated member {$id}");
             if ($isAjax) respond_json(['ok' => true, 'message' => 'Member updated.']);
         }
     } elseif ($action === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id <= 0) {
-            $error = 'Invalid member.';
-            if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
+            if ($isAjax) respond_json(['ok' => false, 'error' => 'Invalid member.']);
         } else {
             try {
                 $stmt = $pdo->prepare("DELETE FROM users WHERE id = ? AND role = 'member'");
                 $stmt->execute([$id]);
                 if ($stmt->rowCount() === 0) {
-                    $error = 'Member not found.';
-                    if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
+                    if ($isAjax) respond_json(['ok' => false, 'error' => 'Member not found.']);
                 }
                 log_audit($pdo, $_SESSION['user_id'], 'member_deleted', "Deleted member {$id}");
                 if ($isAjax) respond_json(['ok' => true, 'message' => 'Member deleted.']);
             } catch (PDOException $e) {
-                $error = 'Unable to delete member. They may have related transactions.';
-                if ($isAjax) respond_json(['ok' => false, 'error' => $error]);
-            }
-        }
-    } elseif ($action === 'approve_registration') {
-        $id = (int)($_POST['id'] ?? 0);
-        if (!$hasStatusColumn) {
-            if ($isAjax) respond_json(['ok' => false, 'error' => 'Registration approval is not supported until the database migration is applied.']);
-        }
-        if ($id <= 0) {
-            if ($isAjax) respond_json(['ok' => false, 'error' => 'Invalid user.']);
-        } else {
-            $stmt = $pdo->prepare("UPDATE users SET status = 'approved' WHERE id = ? AND role = 'member'");
-            $stmt->execute([$id]);
-            log_audit($pdo, $_SESSION['user_id'], 'registration_approved', "Approved registration for user {$id}");
-            if ($isAjax) respond_json(['ok' => true, 'message' => 'Registration approved.']);
-            $success = 'Registration approved.';
-        }
-    } elseif ($action === 'reject_registration') {
-        $id = (int)($_POST['id'] ?? 0);
-        if (!$hasStatusColumn) {
-            if ($isAjax) respond_json(['ok' => false, 'error' => 'Registration approval is not supported until the database migration is applied.']);
-        }
-        if ($id <= 0) {
-            if ($isAjax) respond_json(['ok' => false, 'error' => 'Invalid user.']);
-        } else {
-            $stmt = $pdo->prepare("UPDATE users SET status = 'rejected' WHERE id = ? AND role = 'member'");
-            $stmt->execute([$id]);
-            log_audit($pdo, $_SESSION['user_id'], 'registration_rejected', "Rejected registration for user {$id}");
-            if ($isAjax) respond_json(['ok' => true, 'message' => 'Registration rejected.']);
-            $success = 'Registration rejected.';
-        }
-    } elseif (isset($_POST['add_member'])) {
-        $coopNo = normalize_coop_no($_POST['coop_no'] ?? '');
-        $name = trim($_POST['name'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $phone = trim($_POST['phone'] ?? '');
-        $password = trim($_POST['password'] ?? '');
-
-        if ($coopNo === '' || $name === '') {
-            $error = 'Coop No. and Name are required.';
-        } else {
-            $stmt = $pdo->prepare("SELECT id FROM users WHERE coop_no = ?");
-            $stmt->execute([$coopNo]);
-            $exists = $stmt->fetch();
-
-            if ($exists) {
-                $error = 'A member with this Coop No. already exists.';
-            } else {
-                if ($email === '') {
-                    $email = strtolower(str_replace([' ', '/'], '', $coopNo)) . '@beulahcoop.local';
-                }
-                if ($password === '') {
-                    $password = substr(bin2hex(random_bytes(6)), 0, 12);
-                }
-                $passwordHash = password_hash($password, PASSWORD_BCRYPT);
-                $stmt = $pdo->prepare("
-                    INSERT INTO users (coop_no, name, email, phone, password_hash, role)
-                    VALUES (?, ?, ?, ?, ?, 'member')
-                ");
-                $stmt->execute([$coopNo, $name, $email, $phone, $passwordHash]);
-
-                log_audit($pdo, $_SESSION['user_id'], 'member_created', "Created member {$coopNo}");
-                $success = 'Member added successfully. Temporary password: ' . $password;
+                if ($isAjax) respond_json(['ok' => false, 'error' => 'Cannot delete — member has related transactions.']);
             }
         }
     }
 }
 
-// Fetch members with balances
-$selectStatus = $hasStatusColumn ? ', u.status, u.receipt_path' : '';
 $stmt = $pdo->query("
-    SELECT u.*{$selectStatus}, 
-           COALESCE(SUM(CASE WHEN t.type IN ('savings_credit') THEN t.amount ELSE 0 END), 0) -
-           COALESCE(SUM(CASE WHEN t.type IN ('savings_debit') THEN t.amount ELSE 0 END), 0) as savings,
-           COALESCE(SUM(CASE WHEN t.type = 'loan_disbursed' THEN t.amount ELSE 0 END), 0) -
-           COALESCE(SUM(CASE WHEN t.type = 'loan_repayment' THEN t.amount ELSE 0 END), 0) as loan_outstanding,
-           COALESCE(SUM(CASE WHEN t.type = 'loan_disbursed' THEN t.amount ELSE 0 END), 0) as total_loans_issued
-    FROM users u 
-    LEFT JOIN transactions t ON u.id = t.user_id 
+    SELECT u.*,
+           COALESCE(SUM(CASE WHEN t.type='savings_credit' THEN t.amount ELSE 0 END),0) -
+           COALESCE(SUM(CASE WHEN t.type='savings_debit'  THEN t.amount ELSE 0 END),0) AS savings,
+           COALESCE(SUM(CASE WHEN t.type='loan_disbursed' THEN t.amount ELSE 0 END),0) -
+           COALESCE(SUM(CASE WHEN t.type='loan_repayment' THEN t.amount ELSE 0 END),0) AS loan_outstanding,
+           COALESCE(SUM(CASE WHEN t.type='loan_disbursed' THEN t.amount ELSE 0 END),0) AS total_loans_issued
+    FROM users u
+    LEFT JOIN transactions t ON u.id = t.user_id
     WHERE u.role = 'member'
-    GROUP BY u.id 
+    GROUP BY u.id
     ORDER BY u.coop_no
 ");
 $members = $stmt->fetchAll();
 
-// Calculate summary (matching admin/index.php logic)
 $totalMembers = count($members);
-$totalSavings = 0;
-$totalLoans = 0;
+$totalSavings = $totalLoans = 0;
 foreach ($members as $m) {
     $totalSavings += (float)($m['savings'] ?? 0);
-    $totalLoans += (float)($m['total_loans_issued'] ?? 0);
+    $totalLoans   += (float)($m['total_loans_issued'] ?? 0);
 }
 ?>
-
 <?php
 $pageTitle = 'Members - Beulah Coop';
 $useDashboardLayout = true;
@@ -231,10 +128,15 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
     <div class="dash-section-head">
         <h2 class="dash-title">All Members</h2>
         <div class="dash-section-actions">
-            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addMemberModal">Add Member</button>
-            <a class="btn btn-outline-primary" href="import.php">Import Excel</a>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+                <i class="ph-bold ph-user-plus me-1"></i>Add Member
+            </button>
+            <a class="btn btn-outline-primary" href="import.php">
+                <i class="ph-bold ph-upload-simple me-1"></i>Import Excel
+            </a>
         </div>
     </div>
+
     <div id="memberAlerts"></div>
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
@@ -242,7 +144,6 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
         <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
     <?php endif; ?>
 
-    <!-- Summary Cards -->
     <div class="dash-cards">
         <div class="dash-card">
             <div class="dash-card-label">Total Members</div>
@@ -253,7 +154,7 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
             <div class="dash-card-value"><?= format_money($totalSavings) ?></div>
         </div>
         <div class="dash-card">
-            <div class="dash-card-label">Total Loans</div>
+            <div class="dash-card-label">Total Loans Issued</div>
             <div class="dash-card-value text-danger"><?= format_money($totalLoans) ?></div>
         </div>
     </div>
@@ -261,101 +162,89 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
     <div class="dash-panel dash-panel-table">
         <div class="dash-panel-title">Members</div>
         <div class="table-responsive">
-            <table id="membersTable" class="table table-hover dash-table-grid">
-            <thead>
-                <tr>
-                    <th>Coop No.</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <?php if ($hasStatusColumn): ?><th>Status</th><?php endif; ?>
-                    <?php if ($hasReceiptColumn): ?><th>Receipt</th><?php endif; ?>
-                    <th>Savings</th>
-                    <th>Loan Outstanding</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php foreach ($members as $m): ?>
-                <tr data-id="<?= (int)$m['id'] ?>"
-                    data-coop-no="<?= htmlspecialchars($m['coop_no']) ?>"
-                    data-name="<?= htmlspecialchars($m['name']) ?>"
-                    data-email="<?= htmlspecialchars($m['email'] ?? '') ?>"
-                    data-phone="<?= htmlspecialchars($m['phone'] ?? '') ?>"
-                    data-status="<?= htmlspecialchars($m['status'] ?? '') ?>"
-                    data-receipt-path="<?= htmlspecialchars($m['receipt_path'] ?? '') ?>">
-                    <td><?= htmlspecialchars($m['coop_no']) ?></td>
-                    <td><?= htmlspecialchars($m['name']) ?></td>
-                    <td><?= htmlspecialchars($m['email'] ?? '') ?></td>
-                    <td><?= htmlspecialchars($m['phone'] ?? '') ?></td>
-                    <?php if ($hasStatusColumn): ?>
-                        <?php
-                            $statusText = $m['status'] ?? 'approved';
-                            $statusClass = $statusText === 'approved' ? 'success' : ($statusText === 'pending' ? 'warning' : ($statusText === 'receipt_submitted' ? 'info' : ($statusText === 'rejected' ? 'danger' : 'secondary')));
-                        ?>
-                        <td><span class="badge bg-<?= $statusClass ?>"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $statusText))) ?></span></td>
-                    <?php endif; ?>
-                    <?php if ($hasReceiptColumn): ?>
+            <table id="membersTable" class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Coop No.</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Savings</th>
+                        <th>Loan Outstanding</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($members as $m): ?>
+                    <tr data-id="<?= (int)$m['id'] ?>"
+                        data-coop-no="<?= htmlspecialchars($m['coop_no']) ?>"
+                        data-name="<?= htmlspecialchars($m['name']) ?>"
+                        data-email="<?= htmlspecialchars($m['email'] ?? '') ?>"
+                        data-phone="<?= htmlspecialchars($m['phone'] ?? '') ?>">
+                        <td><span class="tbl-coop-chip"><?= htmlspecialchars($m['coop_no']) ?></span></td>
                         <td>
-                            <?php if (!empty($m['receipt_path'])): ?>
-                                <a href="<?= htmlspecialchars($m['receipt_path']) ?>" target="_blank" class="text-decoration-none">View</a>
-                            <?php else: ?>
-                                <span class="text-muted">None</span>
-                            <?php endif; ?>
+                            <div class="tbl-name"><?= htmlspecialchars($m['name']) ?></div>
                         </td>
-                    <?php endif; ?>
-                    <td><?= format_money($m['savings'] ?? 0) ?></td>
-                    <td><?= format_money($m['loan_outstanding'] ?? 0) ?></td>
-                    <td>
-                        <a href="transactions.php?user_id=<?= $m['id'] ?>" class="btn btn-sm btn-primary">View</a>
-                        <button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
-                        <button type="button" class="btn btn-sm btn-outline-danger btn-delete">Delete</button>
-                        <?php if ($hasStatusColumn && ($m['status'] ?? 'approved') !== 'approved'): ?>
-                            <button type="button" class="btn btn-sm btn-outline-success btn-verify-registration">Verify</button>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+                        <td class="tbl-sub"><?= htmlspecialchars($m['email'] ?? '—') ?></td>
+                        <td class="tbl-sub"><?= htmlspecialchars($m['phone'] ?? '—') ?></td>
+                        <td><span class="tbl-amount positive"><?= format_money($m['savings'] ?? 0) ?></span></td>
+                        <td><span class="tbl-amount <?= ($m['loan_outstanding'] ?? 0) > 0 ? 'negative' : 'neutral' ?>"><?= format_money($m['loan_outstanding'] ?? 0) ?></span></td>
+                        <td>
+                            <div class="tbl-actions">
+                                <a href="transactions.php?user_id=<?= $m['id'] ?>" class="btn-icon btn-icon-view" title="View Transactions">
+                                    <i class="ph-bold ph-eye"></i>
+                                </a>
+                                <button type="button" class="btn-icon btn-icon-edit btn-edit" title="Edit Member">
+                                    <i class="ph-bold ph-pencil-simple"></i>
+                                </button>
+                                <button type="button" class="btn-icon btn-icon-delete btn-delete" title="Delete Member">
+                                    <i class="ph-bold ph-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
+<!-- Add Member Modal -->
 <div class="modal fade" id="addMemberModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add New Member</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title"><i class="ph-bold ph-user-plus me-2"></i>Add New Member</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form method="POST" action="" id="addMemberForm">
-                    <div class="d-grid gap-3">
-                        <div>
+                <form method="POST" id="addMemberForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
                             <label class="form-label">Coop No.</label>
                             <input type="text" name="coop_no" class="form-control" required>
                         </div>
-                        <div>
+                        <div class="col-md-6">
                             <label class="form-label">Full Name</label>
                             <input type="text" name="name" class="form-control" required>
                         </div>
-                        <div>
-                            <label class="form-label">Email (optional)</label>
+                        <div class="col-md-6">
+                            <label class="form-label">Email <span class="text-muted fw-normal">(optional)</span></label>
                             <input type="email" name="email" class="form-control">
                         </div>
-                        <div>
-                            <label class="form-label">Phone (optional)</label>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone <span class="text-muted fw-normal">(optional)</span></label>
                             <input type="text" name="phone" class="form-control">
                         </div>
-                        <div>
-                            <label class="form-label">Password (leave blank to auto-generate)</label>
+                        <div class="col-12">
+                            <label class="form-label">Password <span class="text-muted fw-normal">(leave blank to auto-generate)</span></label>
                             <input type="text" name="password" class="form-control">
                         </div>
                     </div>
-                    <div class="mt-3 d-flex align-items-center justify-content-between">
-                        <small class="text-muted">If left blank, a temporary password is generated.</small>
-                        <button type="submit" name="add_member" class="btn btn-primary">Add Member</button>
+                    <div class="mt-4 d-flex align-items-center justify-content-between">
+                        <small class="text-muted"><i class="ph-bold ph-info me-1"></i>Member will be prompted to change their password on first login.</small>
+                        <button type="submit" name="add_member" class="btn btn-primary"><i class="ph-bold ph-user-plus me-1"></i>Add Member</button>
                     </div>
                 </form>
             </div>
@@ -363,69 +252,38 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
     </div>
 </div>
 
+<!-- Edit Member Modal -->
 <div class="modal fade" id="editMemberModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Edit Member</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title"><i class="ph-bold ph-pencil-simple me-2"></i>Edit Member</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="editMemberId">
-                <div class="d-grid gap-3">
-                    <div>
+                <div class="row g-3">
+                    <div class="col-12">
                         <label class="form-label">Coop No.</label>
                         <input type="text" id="editCoopNo" class="form-control" disabled>
                     </div>
-                    <div>
+                    <div class="col-12">
                         <label class="form-label">Full Name</label>
                         <input type="text" id="editName" class="form-control" required>
                     </div>
-                    <div>
+                    <div class="col-md-6">
                         <label class="form-label">Email</label>
                         <input type="email" id="editEmail" class="form-control">
                     </div>
-                    <div>
+                    <div class="col-md-6">
                         <label class="form-label">Phone</label>
                         <input type="text" id="editPhone" class="form-control">
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="saveMemberChanges">Save Changes</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="verifyRegistrationModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Verify Registration</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="verifyUserId">
-                <div class="mb-3">
-                    <label class="form-label">Coop No.</label>
-                    <input type="text" id="verifyCoopNo" class="form-control" disabled>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Name</label>
-                    <input type="text" id="verifyName" class="form-control" disabled>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Current Status</label>
-                    <input type="text" id="verifyStatusText" class="form-control" disabled>
-                </div>
-                <div class="mb-3" id="receiptPreviewContainer"></div>
-                <div class="alert alert-secondary">Approve to allow access, or reject to block registration.</div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-danger" id="rejectRegistrationBtn">Reject Registration</button>
-                <button type="button" class="btn btn-success" id="approveRegistrationBtn">Approve Registration</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveMemberChanges"><i class="ph-bold ph-floppy-disk me-1"></i>Save Changes</button>
             </div>
         </div>
     </div>
@@ -442,268 +300,116 @@ $extraHead = '<link href="https://cdn.datatables.net/1.13.7/css/dataTables.boots
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
-const hasStatusColumn = <?= $hasStatusColumn ? 'true' : 'false' ?>;
-const hasReceiptColumn = <?= $hasReceiptColumn ? 'true' : 'false' ?>;
 const membersTable = $('#membersTable').DataTable({
     searching: true,
     pageLength: 25,
     dom: '<"dt-top"lfB>rt<"dt-bottom"ip>',
     buttons: [
-        { extend: 'csvHtml5', className: 'btn btn-outline-primary btn-sm', text: 'Export CSV' },
-        { extend: 'pdfHtml5', className: 'btn btn-outline-primary btn-sm', text: 'Export PDF', orientation: 'landscape' }
-    ]
+        { extend: 'csvHtml5', className: 'btn btn-outline-primary btn-sm', text: '<i class="ph-bold ph-file-csv me-1"></i>Export CSV' },
+        { extend: 'pdfHtml5', className: 'btn btn-outline-primary btn-sm', text: '<i class="ph-bold ph-file-pdf me-1"></i>Export PDF', orientation: 'landscape' }
+    ],
+    columnDefs: [{ orderable: false, targets: -1 }]
 });
 
-function showMemberAlert(message, type) {
+function showAlert(msg, type) {
     const el = document.getElementById('memberAlerts');
-    el.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+    el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 async function postJson(data) {
-    const res = await fetch('', {
-        method: 'POST',
-        body: data,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-        throw new Error('Session expired or unexpected response. Please refresh and log in again.');
-    }
-    const json = await res.json();
-    return { res, json };
+    const res = await fetch('', { method: 'POST', body: data, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) throw new Error('Session expired. Please refresh and log in again.');
+    return res.json();
 }
 
 document.getElementById('addMemberForm').addEventListener('submit', async function(e) {
     e.preventDefault();
-    const form = e.currentTarget;
-    const data = new FormData(form);
+    const data = new FormData(this);
     data.append('action', 'add');
     data.append('ajax', '1');
-
     let json;
-    try {
-        ({ json } = await postJson(data));
-    } catch (err) {
-        showMemberAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
-        return;
-    }
-    if (!json.ok) {
-        showMemberAlert(json.error || 'Failed to add member.', 'danger');
-        return;
-    }
+    try { json = await postJson(data); } catch(err) { showAlert(err.message, 'danger'); return; }
+    if (!json.ok) { showAlert(json.error || 'Failed to add member.', 'danger'); return; }
 
     const m = json.member;
-    const rowHtml = [
-        m.coop_no,
-        m.name,
-        m.email || '',
-        m.phone || ''
-    ];
+    const actionHtml = `<div class="tbl-actions">
+        <a href="transactions.php?user_id=${m.id}" class="btn-icon btn-icon-view" title="View Transactions"><i class="ph-bold ph-eye"></i></a>
+        <button type="button" class="btn-icon btn-icon-edit btn-edit" title="Edit Member"><i class="ph-bold ph-pencil-simple"></i></button>
+        <button type="button" class="btn-icon btn-icon-delete btn-delete" title="Delete Member"><i class="ph-bold ph-trash"></i></button>
+    </div>`;
+    const rowNode = membersTable.row.add([
+        `<span class="tbl-coop-chip">${m.coop_no}</span>`,
+        `<div class="tbl-name">${m.name}</div>`,
+        `<span class="tbl-sub">${m.email || '—'}</span>`,
+        `<span class="tbl-sub">${m.phone || '—'}</span>`,
+        `<span class="tbl-amount positive">₦0.00</span>`,
+        `<span class="tbl-amount neutral">₦0.00</span>`,
+        actionHtml
+    ]).draw(false).node();
+    rowNode.dataset.id = m.id;
+    rowNode.dataset.coopNo = m.coop_no;
+    rowNode.dataset.name = m.name;
+    rowNode.dataset.email = m.email || '';
+    rowNode.dataset.phone = m.phone || '';
 
-    if (hasStatusColumn) {
-        rowHtml.push('<span class="badge bg-success">Approved</span>');
-    }
-    if (hasReceiptColumn) {
-        rowHtml.push('<span class="text-muted">None</span>');
-    }
-
-    rowHtml.push(
-        '₦0.00',
-        '₦0.00',
-        `<a href="transactions.php?user_id=${m.id}" class="btn btn-sm btn-primary">View</a>
-         <button type="button" class="btn btn-sm btn-outline-secondary btn-edit">Edit</button>
-         <button type="button" class="btn btn-sm btn-outline-danger btn-delete">Delete</button>`
-    );
-
-    const rowNode = membersTable.row.add(rowHtml).draw(false).node();
-    rowNode.setAttribute('data-id', m.id);
-    rowNode.setAttribute('data-coop-no', m.coop_no);
-    rowNode.setAttribute('data-name', m.name);
-    rowNode.setAttribute('data-email', m.email || '');
-    rowNode.setAttribute('data-phone', m.phone || '');
-    if (hasStatusColumn) {
-        rowNode.setAttribute('data-status', 'approved');
-    }
-    if (hasReceiptColumn) {
-        rowNode.setAttribute('data-receipt-path', '');
-    }
-
-    form.reset();
-    showMemberAlert(json.message || 'Member added.', 'success');
-    const addModal = bootstrap.Modal.getInstance(document.getElementById('addMemberModal'));
-    if (addModal) addModal.hide();
+    this.reset();
+    showAlert(json.message, 'success');
+    bootstrap.Modal.getInstance(document.getElementById('addMemberModal')).hide();
 });
 
 document.getElementById('membersTable').addEventListener('click', function(e) {
     const btn = e.target.closest('.btn-edit');
     if (!btn) return;
     const row = btn.closest('tr');
-    document.getElementById('editMemberId').value = row.getAttribute('data-id');
-    document.getElementById('editCoopNo').value = row.getAttribute('data-coop-no') || '';
-    document.getElementById('editName').value = row.getAttribute('data-name') || '';
-    document.getElementById('editEmail').value = row.getAttribute('data-email') || '';
-    document.getElementById('editPhone').value = row.getAttribute('data-phone') || '';
-    const modal = new bootstrap.Modal(document.getElementById('editMemberModal'));
-    modal.show();
-});
-
-document.getElementById('membersTable').addEventListener('click', function(e) {
-    const row = e.target.closest('tr');
-    if (!row || row.parentElement.tagName !== 'TBODY') return;
-    document.querySelectorAll('#membersTable tbody tr').forEach(r => r.classList.remove('table-selected'));
-    row.classList.add('table-selected');
+    document.getElementById('editMemberId').value = row.dataset.id;
+    document.getElementById('editCoopNo').value   = row.dataset.coopNo || '';
+    document.getElementById('editName').value     = row.dataset.name || '';
+    document.getElementById('editEmail').value    = row.dataset.email || '';
+    document.getElementById('editPhone').value    = row.dataset.phone || '';
+    new bootstrap.Modal(document.getElementById('editMemberModal')).show();
 });
 
 document.getElementById('saveMemberChanges').addEventListener('click', async function() {
     const data = new FormData();
-    data.append('action', 'edit');
-    data.append('ajax', '1');
-    data.append('id', document.getElementById('editMemberId').value);
-    data.append('name', document.getElementById('editName').value.trim());
+    data.append('action', 'edit'); data.append('ajax', '1');
+    data.append('id',    document.getElementById('editMemberId').value);
+    data.append('name',  document.getElementById('editName').value.trim());
     data.append('email', document.getElementById('editEmail').value.trim());
     data.append('phone', document.getElementById('editPhone').value.trim());
-
     let json;
-    try {
-        ({ json } = await postJson(data));
-    } catch (err) {
-        showMemberAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
-        return;
-    }
-    if (!json.ok) {
-        showMemberAlert(json.error || 'Failed to update member.', 'danger');
-        return;
-    }
+    try { json = await postJson(data); } catch(err) { showAlert(err.message, 'danger'); return; }
+    if (!json.ok) { showAlert(json.error || 'Failed to update.', 'danger'); return; }
 
-    const id = document.getElementById('editMemberId').value;
+    const id  = document.getElementById('editMemberId').value;
     const row = document.querySelector(`tr[data-id="${id}"]`);
     if (row) {
-        row.setAttribute('data-name', document.getElementById('editName').value.trim());
-        row.setAttribute('data-email', document.getElementById('editEmail').value.trim());
-        row.setAttribute('data-phone', document.getElementById('editPhone').value.trim());
-
-        const rowApi = membersTable.row(row);
-        const rowData = rowApi.data();
-        rowData[1] = row.getAttribute('data-name');
-        rowData[2] = row.getAttribute('data-email');
-        rowData[3] = row.getAttribute('data-phone');
-        rowApi.data(rowData).draw(false);
+        row.dataset.name  = document.getElementById('editName').value.trim();
+        row.dataset.email = document.getElementById('editEmail').value.trim();
+        row.dataset.phone = document.getElementById('editPhone').value.trim();
+        const d = membersTable.row(row).data();
+        d[1] = `<div class="tbl-name">${row.dataset.name}</div>`;
+        d[2] = `<span class="tbl-sub">${row.dataset.email || '—'}</span>`;
+        d[3] = `<span class="tbl-sub">${row.dataset.phone || '—'}</span>`;
+        membersTable.row(row).data(d).draw(false);
     }
-    showMemberAlert(json.message || 'Member updated.', 'success');
+    showAlert(json.message || 'Member updated.', 'success');
     bootstrap.Modal.getInstance(document.getElementById('editMemberModal')).hide();
-});
-
-document.getElementById('membersTable').addEventListener('click', function(e) {
-    const btn = e.target.closest('.btn-verify-registration');
-    if (!btn) return;
-    const row = btn.closest('tr');
-    document.getElementById('verifyUserId').value = row.getAttribute('data-id');
-    document.getElementById('verifyCoopNo').value = row.getAttribute('data-coop-no') || '';
-    document.getElementById('verifyName').value = row.getAttribute('data-name') || '';
-    document.getElementById('verifyStatusText').value = (row.getAttribute('data-status') || 'pending').replace(/_/g, ' ');
-
-    const receiptContainer = document.getElementById('receiptPreviewContainer');
-    const receiptPath = row.getAttribute('data-receipt-path') || '';
-    if (receiptPath) {
-        receiptContainer.innerHTML = `<strong>Receipt:</strong> <a href="${receiptPath}" target="_blank">View uploaded receipt</a>`;
-    } else {
-        receiptContainer.innerHTML = '<div class="alert alert-warning mb-0">No receipt uploaded for this registration.</div>';
-    }
-
-    const modal = new bootstrap.Modal(document.getElementById('verifyRegistrationModal'));
-    modal.show();
-});
-
-document.getElementById('approveRegistrationBtn').addEventListener('click', async function() {
-    const userId = document.getElementById('verifyUserId').value;
-    const data = new FormData();
-    data.append('action', 'approve_registration');
-    data.append('ajax', '1');
-    data.append('id', userId);
-
-    let json;
-    try {
-        ({ json } = await postJson(data));
-    } catch (err) {
-        showMemberAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
-        return;
-    }
-    if (!json.ok) {
-        showMemberAlert(json.error || 'Failed to approve registration.', 'danger');
-        return;
-    }
-
-    const row = document.querySelector(`tr[data-id="${userId}"]`);
-    if (row) {
-        row.setAttribute('data-status', 'approved');
-        const statusCell = row.querySelector('td:nth-child(5)');
-        if (statusCell) {
-            statusCell.innerHTML = '<span class="badge bg-success">Approved</span>';
-        }
-    }
-
-    bootstrap.Modal.getInstance(document.getElementById('verifyRegistrationModal')).hide();
-    showMemberAlert(json.message || 'Registration approved.', 'success');
-});
-
-document.getElementById('rejectRegistrationBtn').addEventListener('click', async function() {
-    const userId = document.getElementById('verifyUserId').value;
-    const data = new FormData();
-    data.append('action', 'reject_registration');
-    data.append('ajax', '1');
-    data.append('id', userId);
-
-    let json;
-    try {
-        ({ json } = await postJson(data));
-    } catch (err) {
-        showMemberAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
-        return;
-    }
-    if (!json.ok) {
-        showMemberAlert(json.error || 'Failed to reject registration.', 'danger');
-        return;
-    }
-
-    const row = document.querySelector(`tr[data-id="${userId}"]`);
-    if (row) {
-        row.setAttribute('data-status', 'rejected');
-        const statusCell = row.querySelector('td:nth-child(5)');
-        if (statusCell) {
-            statusCell.innerHTML = '<span class="badge bg-danger">Rejected</span>';
-        }
-    }
-
-    bootstrap.Modal.getInstance(document.getElementById('verifyRegistrationModal')).hide();
-    showMemberAlert(json.message || 'Registration rejected.', 'success');
 });
 
 document.getElementById('membersTable').addEventListener('click', async function(e) {
     const btn = e.target.closest('.btn-delete');
     if (!btn) return;
     const row = btn.closest('tr');
-    const coopNo = row.getAttribute('data-coop-no') || 'this member';
-    if (!confirm(`Delete ${coopNo}? This cannot be undone.`)) return;
-
+    if (!confirm(`Delete ${row.dataset.coopNo || 'this member'}? This cannot be undone.`)) return;
     const data = new FormData();
-    data.append('action', 'delete');
-    data.append('ajax', '1');
-    data.append('id', row.getAttribute('data-id'));
-
+    data.append('action', 'delete'); data.append('ajax', '1'); data.append('id', row.dataset.id);
     let json;
-    try {
-        ({ json } = await postJson(data));
-    } catch (err) {
-        showMemberAlert(err.message || 'Unexpected response. Please refresh and try again.', 'danger');
-        return;
-    }
-    if (!json.ok) {
-        showMemberAlert(json.error || 'Failed to delete member.', 'danger');
-        return;
-    }
-
+    try { json = await postJson(data); } catch(err) { showAlert(err.message, 'danger'); return; }
+    if (!json.ok) { showAlert(json.error || 'Failed to delete.', 'danger'); return; }
     membersTable.row(row).remove().draw(false);
-    showMemberAlert(json.message || 'Member deleted.', 'success');
+    showAlert(json.message || 'Member deleted.', 'success');
 });
 </script>
 <?php include '../includes/footer.php'; ?>

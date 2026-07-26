@@ -172,13 +172,13 @@ $useDashboardLayout = true;
 
     <div class="profile-tabs">
         <a href="?tab=personal" class="profile-tab<?= $activeTab === 'personal' ? ' active' : '' ?>">
-            <i class="bi bi-person-circle"></i> Personal Info
+            <i class="ph-bold ph-user-circle"></i> Personal Info
         </a>
         <a href="?tab=security" class="profile-tab<?= $activeTab === 'security' ? ' active' : '' ?>">
-            <i class="bi bi-shield-lock"></i> Security
+            <i class="ph-bold ph-shield-lock"></i> Security
         </a>
         <a href="?tab=activity" class="profile-tab<?= $activeTab === 'activity' ? ' active' : '' ?>">
-            <i class="bi bi-clock-history"></i> Activity
+            <i class="ph-bold ph-clock-clockwise"></i> Activity
         </a>
     </div>
 
@@ -186,7 +186,7 @@ $useDashboardLayout = true;
     <div class="tab-content<?= $activeTab === 'personal' ? ' active' : '' ?>">
         <div class="dash-split">
             <div class="dash-card-panel">
-                <div class="dash-card-header p-3"><h5 class="mb-0"><i class="bi bi-image me-2"></i>Profile Photo</h5></div>
+                <div class="dash-card-header p-3"><h5 class="mb-0"><i class="ph-bold ph-image me-2"></i>Profile Photo</h5></div>
                 <div class="profile-photo-section text-center p-3">
                     <?php if (!empty($user_photo) && file_exists(__DIR__ . '/../' . $user_photo)): ?>
                         <img src="../<?= htmlspecialchars($user_photo) ?>" alt="Profile Photo" class="profile-photo-preview">
@@ -197,21 +197,21 @@ $useDashboardLayout = true;
                     <?php endif; ?>
                     <div class="profile-photo-actions">
                         <form method="POST" enctype="multipart/form-data" style="display:inline;">
-                            <label class="btn btn-outline-primary" for="photo-upload"><i class="bi bi-camera me-1"></i>Upload Photo</label>
+                            <label class="btn btn-outline-primary" for="photo-upload"><i class="ph-bold ph-camera me-1"></i>Upload Photo</label>
                             <input type="file" id="photo-upload" name="profile_photo" accept="image/*" style="display:none;" onchange="this.form.submit()">
                             <input type="hidden" name="upload_photo" value="1">
                         </form>
                         <?php if (!empty($user_photo)): ?>
                             <form method="POST" style="display:inline;" onsubmit="return confirm('Remove profile photo?');">
                                 <input type="hidden" name="delete_photo" value="1">
-                                <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Remove</button>
+                                <button type="submit" class="btn btn-outline-danger"><i class="ph-bold ph-trash me-1"></i>Remove</button>
                             </form>
                         <?php endif; ?>
                     </div>
                     <small class="text-muted">Max 5MB. JPEG, PNG, GIF, WebP</small>
                 </div>
 
-                <div class="dash-card-header p-3"><h5 class="mb-0"><i class="bi bi-person-circle me-2"></i>Personal Information</h5></div>
+                <div class="dash-card-header p-3"><h5 class="mb-0"><i class="ph-bold ph-user-circle me-2"></i>Personal Information</h5></div>
                 <div class="p-3">
                     <form method="POST">
                         <div class="row g-3">
@@ -228,7 +228,7 @@ $useDashboardLayout = true;
                                 <input type="tel" class="form-control" name="phone" value="<?= htmlspecialchars($user_phone) ?>">
                             </div>
                             <div class="col-12">
-                                <button type="submit" name="update_profile" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save Changes</button>
+                                <button type="submit" name="update_profile" class="btn btn-primary"><i class="ph-bold ph-floppy-disk me-1"></i>Save Changes</button>
                             </div>
                         </div>
                     </form>
@@ -242,7 +242,7 @@ $useDashboardLayout = true;
                 </div>
                 <div class="dash-summary-card">
                     <div class="dash-summary-label">Role</div>
-                    <div class="dash-summary-value text-primary"><i class="bi bi-shield-fill-check me-1"></i>Administrator</div>
+                    <div class="dash-summary-value text-primary"><i class="ph-bold ph-shield-check me-1"></i>Administrator</div>
                 </div>
                 <div class="dash-summary-card">
                     <div class="dash-summary-label">Account Age</div>
@@ -256,7 +256,7 @@ $useDashboardLayout = true;
     <!-- Security Tab -->
     <div class="tab-content<?= $activeTab === 'security' ? ' active' : '' ?>">
         <div class="dash-card-panel" style="max-width:500px;">
-            <div class="dash-card-header p-3"><h5 class="mb-0"><i class="bi bi-key me-2"></i>Change Password</h5></div>
+            <div class="dash-card-header p-3"><h5 class="mb-0"><i class="ph-bold ph-key me-2"></i>Change Password</h5></div>
             <div class="p-3">
                 <form method="POST">
                     <div class="mb-3">
@@ -272,7 +272,7 @@ $useDashboardLayout = true;
                         <label class="form-label">Confirm New Password</label>
                         <input type="password" class="form-control" name="confirm_password" required>
                     </div>
-                    <button type="submit" name="change_password" class="btn btn-warning"><i class="bi bi-key me-1"></i>Change Password</button>
+                    <button type="submit" name="change_password" class="btn btn-warning"><i class="ph-bold ph-key me-1"></i>Change Password</button>
                 </form>
             </div>
         </div>
@@ -282,7 +282,7 @@ $useDashboardLayout = true;
     <div class="tab-content<?= $activeTab === 'activity' ? ' active' : '' ?>">
         <div class="dash-card-panel">
             <div class="dash-card-header p-3 d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Activity</h5>
+                <h5 class="mb-0"><i class="ph-bold ph-clock-clockwise me-2"></i>Recent Activity</h5>
                 <span class="badge bg-primary-soft">Last 10 entries</span>
             </div>
             <div class="dash-panel-table px-3 pb-3">
@@ -292,7 +292,7 @@ $useDashboardLayout = true;
                 $activities = $stmt->fetchAll();
                 ?>
                 <?php if (empty($activities)): ?>
-                    <div class="text-center text-muted py-4"><i class="bi bi-inbox" style="font-size:2rem;"></i><p class="mb-0 mt-2">No recent activity</p></div>
+                    <div class="text-center text-muted py-4"><i class="ph-bold ph-tray" style="font-size:2rem;"></i><p class="mb-0 mt-2">No recent activity</p></div>
                 <?php else: ?>
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">

@@ -2,12 +2,10 @@
 // member/profile.php - Member Profile Page with Tabs
 require_once '../includes/auth.php';
 if ($_SESSION['role'] === 'admin') {
-    header("Location: ../admin/index.php");
-    exit();
+    header("Location: ../admin/profile.php"); exit();
 }
 if ($_SESSION['role'] !== 'member') {
-    header("Location: ../login.php");
-    exit();
+    header("Location: ../login.php"); exit();
 }
 
 $user_id = $_SESSION['user_id'];
@@ -180,6 +178,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
             $stmt = $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
             $stmt->execute([$hashed_password, $user_id]);
 
+            // Clear must_change_password flag
+            if (table_has_column($pdo, 'users', 'must_change_password')) {
+                $pdo->prepare("UPDATE users SET must_change_password = 0 WHERE id = ?")->execute([$user_id]);
+            }
+
             // Log audit
             log_audit($pdo, $user_id, 'password_change', 'Password changed successfully');
 
@@ -339,116 +342,30 @@ if (!in_array($activeTab, $validTabs)) {
     $activeTab = 'personal';
 }
 
+// Check must_change_password
+$mustChange = false;
+if (table_has_column($pdo, 'users', 'must_change_password')) {
+    $mustChange = !empty($user['must_change_password']);
+}
+
 $pageTitle = 'My Profile - Beulah Coop';
 $useDashboardLayout = true;
 ?>
 <?php include '../includes/header.php'; ?>
-<style>
-/* Profile Tabs - Matching Platform Design */
-.profile-tabs {
-    display: flex;
-    gap: 0.5rem;
-    background: var(--gray-100);
-    border-radius: 1rem;
-    padding: 0.5rem;
-    margin-bottom: 1.5rem;
-}
-
-.profile-tab {
-    flex: 1;
-    padding: 0.75rem 1rem;
-    border: none;
-    background: transparent;
-    border-radius: 0.75rem;
-    font-weight: 600;
-    font-size: 0.875rem;
-    color: var(--gray-600);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-}
-
-.profile-tab:hover {
-    background: var(--primary-soft);
-    color: var(--primary);
-}
-
-.profile-tab.active {
-    background: var(--primary);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(97, 4, 95, 0.3);
-}
-
-.tab-content {
-    display: none;
-}
-
-.tab-content.active {
-    display: block;
-}
-
-/* Profile Photo Section */
-.profile-photo-section {
-    text-align: center;
-    padding: 1.5rem;
-}
-
-.profile-photo-preview {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 4px solid var(--primary);
-    box-shadow: var(--shadow-lg);
-}
-
-.profile-photo-actions {
-    margin-top: 1rem;
-    display: flex;
-    gap: 0.75rem;
-    justify-content: center;
-}
-
-/* 2FA Status Badges */
-.twofa-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 9999px;
-    font-weight: 600;
-    font-size: 0.875rem;
-}
-
-.twofa-enabled {
-    background: var(--success-light);
-    color: #065F46;
-}
-
-.twofa-disabled {
-    background: var(--gray-200);
-    color: var(--gray-600);
-}
-
-/* Danger Zone */
-.danger-zone {
-    border: 2px solid var(--danger);
-    border-radius: 1.5rem;
-    background: var(--danger-light);
-}
-
-.danger-zone .dash-card-header {
-    background: rgba(220, 38, 38, 0.1);
-    color: var(--danger);
-    border-bottom-color: rgba(220, 38, 38, 0.2);
-}
-</style>
 
 <div class="dash-grid">
+    <!-- Password Change Banner -->
+    <?php if ($mustChange): ?>
+    <div class="pwd-change-banner">
+        <div class="pwd-change-banner-icon"><i class="ph-bold ph-lock-key"></i></div>
+        <div class="pwd-change-banner-body">
+            <div class="pwd-change-banner-title">Change Your Temporary Password</div>
+            <p class="pwd-change-banner-text">Your account was created with a temporary password. Use the Security tab below to set a new one.</p>
+        </div>
+        <a href="?tab=security" class="btn"><i class="ph-bold ph-shield-check me-1"></i>Go to Security</a>
+    </div>
+    <?php endif; ?>
+
     <!-- Profile Header -->
     <div class="dash-section-head">
         <div>
@@ -458,34 +375,31 @@ $useDashboardLayout = true;
         <div class="dash-pill">Coop No: <?= htmlspecialchars($user_coop_no) ?></div>
     </div>
 
-    <!-- Alerts -->
     <?php if ($success_msg): ?>
         <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle me-2"></i><?= htmlspecialchars($success_msg) ?>
-            <button type="button" class="btn-close" data-bs-toggle="alert"></button>
+            <i class="ph-bold ph-check-circle me-2"></i><?= htmlspecialchars($success_msg) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
-    
     <?php if ($error_msg): ?>
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="bi bi-exclamation-triangle me-2"></i><?= htmlspecialchars($error_msg) ?>
-            <button type="button" class="btn-close" data-bs-toggle="alert"></button>
+            <i class="ph-bold ph-warning me-2"></i><?= htmlspecialchars($error_msg) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
 
-    <!-- Profile Tabs -->
     <div class="profile-tabs">
         <a href="?tab=personal" class="profile-tab<?= $activeTab === 'personal' ? ' active' : '' ?>">
-            <i class="bi bi-person-circle"></i> Personal Info
+            <i class="ph-bold ph-user-circle"></i> Personal Info
         </a>
         <a href="?tab=security" class="profile-tab<?= $activeTab === 'security' ? ' active' : '' ?>">
-            <i class="bi bi-shield-lock"></i> Security
+            <i class="ph-bold ph-shield-lock"></i> Security
         </a>
         <a href="?tab=privacy" class="profile-tab<?= $activeTab === 'privacy' ? ' active' : '' ?>">
-            <i class="bi bi-eye-slash"></i> Privacy
+            <i class="ph-bold ph-eye-slash"></i> Privacy
         </a>
         <a href="?tab=activity" class="profile-tab<?= $activeTab === 'activity' ? ' active' : '' ?>">
-            <i class="bi bi-clock-history"></i> Activity
+            <i class="ph-bold ph-clock-clockwise"></i> Activity
         </a>
     </div>
 
@@ -496,7 +410,7 @@ $useDashboardLayout = true;
             <div class="dash-card-panel">
                 <!-- Profile Photo Section -->
                 <div class="dash-card-header p-3">
-                    <h5 class="mb-0"><i class="bi bi-image me-2"></i>Profile Photo</h5>
+                    <h5 class="mb-0"><i class="ph-bold ph-image me-2"></i>Profile Photo</h5>
                 </div>
                 <div class="profile-photo-section">
                     <?php if (!empty($user_photo) && file_exists(__DIR__ . '/../' . $user_photo)): ?>
@@ -509,7 +423,7 @@ $useDashboardLayout = true;
                     <div class="profile-photo-actions">
                         <form method="POST" enctype="multipart/form-data" style="display: inline;">
                             <label class="btn btn-outline-primary" for="photo-upload">
-                                <i class="bi bi-camera me-1"></i>Upload Photo
+                                <i class="ph-bold ph-camera me-1"></i>Upload Photo
                             </label>
                             <input type="file" id="photo-upload" name="profile_photo" accept="image/*" style="display: none;" onchange="this.form.submit()">
                             <input type="hidden" name="upload_photo" value="1">
@@ -518,7 +432,7 @@ $useDashboardLayout = true;
                             <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to remove your profile photo?');">
                                 <input type="hidden" name="delete_photo" value="1">
                                 <button type="submit" class="btn btn-outline-danger">
-                                    <i class="bi bi-trash me-1"></i>Remove
+                                    <i class="ph-bold ph-trash me-1"></i>Remove
                                 </button>
                             </form>
                         <?php endif; ?>
@@ -528,7 +442,7 @@ $useDashboardLayout = true;
 
                 <!-- Personal Information Form -->
                 <div class="dash-card-header p-3">
-                    <h5 class="mb-0"><i class="bi bi-person-circle me-2"></i>Personal Information</h5>
+                    <h5 class="mb-0"><i class="ph-bold ph-user-circle me-2"></i>Personal Information</h5>
                 </div>
                 <div class="p-3">
                     <form method="POST" action="">
@@ -555,7 +469,7 @@ $useDashboardLayout = true;
                             </div>
                             <div class="col-12">
                                 <button type="submit" name="update_profile" class="btn btn-primary">
-                                    <i class="bi bi-save me-1"></i>Save Changes
+                                    <i class="ph-bold ph-floppy-disk me-1"></i>Save Changes
                                 </button>
                             </div>
                         </div>
@@ -575,7 +489,7 @@ $useDashboardLayout = true;
                 <div class="dash-summary-card">
                     <div class="dash-summary-label">Account Status</div>
                     <div class="dash-summary-value text-success">
-                        <i class="bi bi-check-circle-fill me-1"></i>Active
+                        <i class="ph-bold ph-check-circle me-1"></i>Active
                     </div>
                 </div>
 
@@ -605,7 +519,7 @@ $useDashboardLayout = true;
             <div class="col-md-6">
                 <div class="dash-card-panel">
                     <div class="dash-card-header p-3">
-                        <h5 class="mb-0"><i class="bi bi-key me-2"></i>Change Password</h5>
+                        <h5 class="mb-0"><i class="ph-bold ph-key me-2"></i>Change Password</h5>
                     </div>
                     <div class="p-3">
                         <form method="POST" action="">
@@ -624,7 +538,7 @@ $useDashboardLayout = true;
                                 <input type="password" class="form-control" name="confirm_password" required>
                             </div>
                             <button type="submit" name="change_password" class="btn btn-warning">
-                                <i class="bi bi-key me-1"></i>Change Password
+                                <i class="ph-bold ph-key me-1"></i>Change Password
                             </button>
                         </form>
                     </div>
@@ -635,19 +549,19 @@ $useDashboardLayout = true;
             <div class="col-md-6">
                 <div class="dash-card-panel">
                     <div class="dash-card-header p-3">
-                        <h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>Two-Factor Authentication</h5>
+                        <h5 class="mb-0"><i class="ph-bold ph-shield-check me-2"></i>Two-Factor Authentication</h5>
                     </div>
                     <div class="p-3">
                         <div class="mb-4">
                             <p class="text-muted mb-2">Current Status:</p>
                             <?php if ($twofaColumn): ?>
                                 <span class="twofa-status <?= $twofaEnabled ? 'twofa-enabled' : 'twofa-disabled' ?>">
-                                    <i class="bi bi-<?= $twofaEnabled ? 'check-shield' : 'shield-x' ?>"></i>
+                                    <i class="ph-bold ph-<?= $twofaEnabled ? 'shield-check' : 'shield-slash' ?>"></i>
                                     <?= $twofaEnabled ? 'Enabled' : 'Disabled' ?>
                                 </span>
                             <?php else: ?>
                                 <span class="twofa-status twofa-disabled">
-                                    <i class="bi bi-info-circle"></i>
+                                    <i class="ph-bold ph-info"></i>
                                     Not Configured
                                 </span>
                             <?php endif; ?>
@@ -666,7 +580,7 @@ $useDashboardLayout = true;
                                         <input type="password" class="form-control" name="verify_password" required>
                                     </div>
                                     <button type="submit" name="toggle_2fa" class="btn btn-outline-danger">
-                                        <i class="bi bi-shield-x me-1"></i>Disable 2FA
+                                        <i class="ph-bold ph-shield-slash me-1"></i>Disable 2FA
                                     </button>
                                 </form>
                             <?php else: ?>
@@ -685,7 +599,7 @@ $useDashboardLayout = true;
                                         </div>
                                         <div class="d-flex gap-2">
                                             <button type="submit" name="toggle_2fa" class="btn btn-success">
-                                                <i class="bi bi-check-circle me-1"></i>Verify & Enable
+                                                <i class="ph-bold ph-check-circle me-1"></i>Verify & Enable
                                             </button>
                                             <a href="?tab=security" class="btn btn-outline-secondary">Cancel</a>
                                         </div>
@@ -701,7 +615,7 @@ $useDashboardLayout = true;
                                             <input type="password" class="form-control" name="verify_password" required>
                                         </div>
                                         <button type="submit" name="toggle_2fa" class="btn btn-outline-success">
-                                            <i class="bi bi-shield-check me-1"></i>Enable 2FA
+                                            <i class="ph-bold ph-shield-check me-1"></i>Enable 2FA
                                         </button>
                                     </form>
                                 <?php endif; ?>
@@ -722,7 +636,7 @@ $useDashboardLayout = true;
     <div class="tab-content<?= $activeTab === 'privacy' ? ' active' : '' ?>" id="tab-privacy">
         <div class="dash-card-panel danger-zone">
             <div class="dash-card-header p-3">
-                <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Danger Zone</h5>
+                <h5 class="mb-0"><i class="ph-bold ph-warning me-2"></i>Danger Zone</h5>
             </div>
             <div class="p-3">
                 <div class="row">
@@ -740,7 +654,7 @@ $useDashboardLayout = true;
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
-                            <i class="bi bi-trash me-1"></i>Delete Account
+                            <i class="ph-bold ph-trash me-1"></i>Delete Account
                         </button>
                     </div>
                 </div>
@@ -752,7 +666,7 @@ $useDashboardLayout = true;
     <div class="tab-content<?= $activeTab === 'activity' ? ' active' : '' ?>" id="tab-activity">
         <div class="dash-card-panel">
             <div class="dash-card-header p-3 d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Account Activity</h5>
+                <h5 class="mb-0"><i class="ph-bold ph-clock-clockwise me-2"></i>Recent Account Activity</h5>
                 <span class="badge bg-primary-soft">Last 10 entries</span>
             </div>
             <div class="dash-panel-table px-3 pb-3">
@@ -768,7 +682,7 @@ $useDashboardLayout = true;
                 ?>
                 <?php if (empty($activities)): ?>
                     <div class="text-center text-muted py-4">
-                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                        <i class="ph-bold ph-tray" style="font-size: 2rem;"></i>
                         <p class="mb-0 mt-2">No recent activity</p>
                     </div>
                 <?php else: ?>
@@ -806,13 +720,13 @@ $useDashboardLayout = true;
         <div class="modal-content">
             <div class="modal-header border-0">
                 <h5 class="modal-title text-danger">
-                    <i class="bi bi-exclamation-triangle me-2"></i>Confirm Account Deletion
+                    <i class="ph-bold ph-warning me-2"></i>Confirm Account Deletion
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <i class="ph-bold ph-warning-circle me-2"></i>
                     <strong>This action cannot be undone!</strong>
                 </div>
                 <p class="mb-4">
@@ -831,7 +745,7 @@ $useDashboardLayout = true;
                     <div class="d-flex justify-content-between">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" name="delete_account" class="btn btn-danger">
-                            <i class="bi bi-trash me-1"></i>Delete My Account
+                            <i class="ph-bold ph-trash me-1"></i>Delete My Account
                         </button>
                     </div>
                 </form>
