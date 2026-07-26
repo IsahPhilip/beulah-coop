@@ -15,11 +15,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
-    $coopNo = normalize_coop_no($_POST['coop_no'] ?? '');
     $password = trim($_POST['password'] ?? '');
     $confirmPassword = trim($_POST['confirm_password'] ?? '');
+    $coopNo = generate_next_coop_no($pdo);
 
-    if ($coopNo === '' || $name === '' || $email === '' || $password === '' || $confirmPassword === '') {
+    if ($name === '' || $email === '' || $password === '' || $confirmPassword === '') {
         $error = 'Please complete all required fields.';
     } elseif ($password !== $confirmPassword) {
         $error = 'Passwords do not match.';
@@ -141,41 +141,107 @@ function normalize_coop_no($value) {
                 <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
             <?php endif; ?>
 
-            <form method="POST" action="" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label class="form-label">Coop No. (e.g. BC01)</label>
-                    <input type="text" name="coop_no" class="form-control" required value="<?= htmlspecialchars($_POST['coop_no'] ?? '') ?>">
+            <form method="POST" action="" enctype="multipart/form-data" id="multiStepForm">
+                <!-- Step 1: Personal Details -->
+                <div class="form-step" id="step1">
+                    <div class="mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" name="name" class="form-control" required value="<?= htmlspecialchars($_POST['name'] ?? '') ?>">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>">
+                    </div>
+                    <button type="button" class="btn btn-primary w-100" onclick="nextStep(1)">Next</button>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Full Name</label>
-                    <input type="text" name="name" class="form-control" required value="<?= htmlspecialchars($_POST['name'] ?? '') ?>">
+
+                <!-- Step 2: Account Information -->
+                <div class="form-step" id="step2" style="display: none;">
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" id="password" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confirm Password</label>
+                        <input type="password" name="confirm_password" class="form-control" required>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" onclick="prevStep(2)">Previous</button>
+                        <button type="button" class="btn btn-primary" onclick="nextStep(2)">Next</button>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Email</label>
-                    <input type="email" name="email" class="form-control" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+
+                <!-- Step 3: Payment -->
+                <div class="form-step" id="step3" style="display: none;">
+                    <div class="mb-3">
+                        <label class="form-label">Upload Receipt (optional)</label>
+                        <input type="file" name="receipt" class="form-control" accept=".jpeg,.jpg,.png,.pdf">
+                        <div class="form-text">Upload proof of N2000 payment. Payment verification is done by admin.</div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" onclick="prevStep(3)">Previous</button>
+                        <button type="submit" class="btn btn-primary">Submit Registration</button>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Phone</label>
-                    <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Password</label>
-                    <input type="password" name="password" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Confirm Password</label>
-                    <input type="password" name="confirm_password" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Upload Receipt (optional)</label>
-                    <input type="file" name="receipt" class="form-control" accept=".jpeg,.jpg,.png,.pdf">
-                    <div class="form-text">Upload proof of N2000 payment. Payment verification is done by admin.</div>
-                </div>
-                <button type="submit" class="btn btn-primary w-100">Submit Registration</button>
-                <div class="auth-footer d-flex justify-content-between">
+                <div class="auth-footer d-flex justify-content-between mt-3">
                     <a href="login.php" class="text-decoration-none">Back to login</a>
                 </div>
             </form>
+
+            <script>
+                let currentStep = 1;
+                const form = document.getElementById('multiStepForm');
+
+                function showStep(step) {
+                    document.getElementById('step' + currentStep).style.display = 'none';
+                    document.getElementById('step' + step).style.display = 'block';
+                    currentStep = step;
+                }
+
+                function nextStep(step) {
+                    if (validateStep(step)) {
+                        showStep(step + 1);
+                    }
+                }
+
+                function prevStep(step) {
+                    showStep(step - 1);
+                }
+
+                function validateStep(step) {
+                    let valid = true;
+                    const currentStepFields = form.querySelectorAll('#step' + step + ' [required]');
+
+                    currentStepFields.forEach(field => {
+                        if (!field.value.trim()) {
+                            valid = false;
+                            field.classList.add('is-invalid');
+                        } else {
+                            field.classList.remove('is-invalid');
+                        }
+                    });
+
+                    if (step === 2) {
+                        const password = document.getElementById('password').value;
+                        const confirmPassword = document.querySelector('[name="confirm_password"]').value;
+                        if (password !== confirmPassword) {
+                            valid = false;
+                            alert('Passwords do not match.');
+                            document.getElementById('password').classList.add('is-invalid');
+                            document.querySelector('[name="confirm_password"]').classList.add('is-invalid');
+                        } else {
+                            document.getElementById('password').classList.remove('is-invalid');
+                            document.querySelector('[name="confirm_password"]').classList.remove('is-invalid');
+                        }
+                    }
+
+                    return valid;
+                }
+            </script>
         </div>
     </div>
 </div>
