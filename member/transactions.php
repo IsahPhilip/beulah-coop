@@ -9,7 +9,7 @@ if ($_SESSION['role'] !== 'member') {
 $userId = $_SESSION['user_id'];
 
 // Date range filter
-$dateFrom = $_GET['date_from'] ?? date('Y-m-01');
+$dateFrom = $_GET['date_from'] ?? date('Y-m-01', strtotime('-1 month'));
 $dateTo = $_GET['date_to'] ?? date('Y-m-d');
 
 // Get member's transactions

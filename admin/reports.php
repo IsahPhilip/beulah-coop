@@ -53,12 +53,12 @@ $trends = $trendStmt->fetchAll();
 
 // Top members by savings
 $topSaversQuery = "
-    SELECT u.name, u.coop_no, 
-           SUM(CASE WHEN t.type = 'savings_credit' THEN t.amount ELSE 0 END) as total_savings
+    SELECT u.name, u.coop_no,
+           SUM(CASE WHEN t.type = 'savings_credit' AND t.trans_date BETWEEN ? AND ? THEN t.amount ELSE 0 END) as total_savings
     FROM users u
     LEFT JOIN transactions t ON u.id = t.user_id
-    WHERE u.role = 'member' AND (t.trans_date BETWEEN ? AND ? OR t.trans_date IS NULL)
-    GROUP BY u.id
+    WHERE u.role = 'member'
+    GROUP BY u.id, u.name, u.coop_no
     ORDER BY total_savings DESC
     LIMIT 10
 ";
@@ -86,7 +86,7 @@ $memberStatsQuery = "
         COUNT(*) as total_members,
         SUM(CASE WHEN created_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as new_members
     FROM users 
-    WHERE role = 'member'
+    WHERE role = 'member' AND (registration_status = 'active' OR registration_status IS NULL)
 ";
 $memberStatsStmt = $pdo->prepare($memberStatsQuery);
 $memberStatsStmt->execute([$dateFrom, $dateTo]);
@@ -188,6 +188,7 @@ $memberStats = $memberStatsStmt->fetch();
                 <?php endforeach; ?>
             </tbody>
         </table>
+    </div>
     </div>
 
     <!-- Member Statistics -->
